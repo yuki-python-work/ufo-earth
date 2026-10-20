@@ -399,11 +399,80 @@
 
   // 効果音(Web Audioで生成。iPhoneはタップ後に音を有効にする必要がある)
   let audioCtx = null;
+  let amb = null; // 環境音(波・風・鳥)
+
+  function setupAmbience() {
+    const ctx = audioCtx;
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+    const noiseLoop = (type, freq, q) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(f).connect(g).connect(ctx.destination);
+      src.start();
+      return g;
+    };
+    const seaG = noiseLoop("lowpass", 700, 0.7);   // 波の音
+    const windG = noiseLoop("bandpass", 1400, 0.5); // 風の音
+
+    // 波が寄せては返すゆっくりした揺れ
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.12;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.15;
+    lfo.connect(lfoGain).connect(seaG.gain);
+    lfo.start();
+
+    amb = { seaG, windG, birdTimer: 2 };
+  }
+
+  function chirp() {
+    const t = audioCtx.currentTime;
+    const base = 1800 + Math.random() * 1200;
+    for (let i = 0; i < 2; i++) {
+      const start = t + i * 0.18;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(base, start);
+      o.frequency.exponentialRampToValueAtTime(base * 1.4, start + 0.08);
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.exponentialRampToValueAtTime(0.04, start + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(start);
+      o.stop(start + 0.16);
+    }
+  }
+
+  // 海の上では波、山の近くでは強い風、陸地では鳥の声
+  function updateAmbience(dt, up, alt) {
+    if (!amb || !audioCtx || audioCtx.state !== "running") return;
+    const now = audioCtx.currentTime;
+    const h = terrainH(up.x, up.y, up.z);
+    const overSea = h < 0;
+    const near = clamp(1 - alt / 40, 0, 1);
+    amb.seaG.gain.setTargetAtTime(overSea ? 0.3 * near : 0, now, 0.4);
+    const windLevel = overSea ? 0.02 : (h > 0.6 ? 0.12 : 0.04);
+    amb.windG.gain.setTargetAtTime(windLevel * near, now, 0.6);
+    amb.birdTimer -= dt;
+    if (amb.birdTimer <= 0) {
+      amb.birdTimer = 3 + Math.random() * 4;
+      if (!overSea && near > 0.2) chirp();
+    }
+  }
   function ensureAudio() {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       audioCtx = new AC();
+      setupAmbience();
     }
     if (audioCtx.state === "suspended") audioCtx.resume();
   }
@@ -538,6 +607,7 @@
     scoreEl.textContent = score;
     timeEl.textContent = Math.ceil(timeLeft);
     altEl.textContent = alt < 0.9 ? "着陸中" : "ALT " + Math.round(alt * 10) / 10;
+    updateAmbience(dt, up, alt);
   }
 
   // ---------- 描画ループ ----------
