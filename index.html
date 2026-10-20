@@ -54,13 +54,14 @@
 <div id="rot">横向きにするとプレイしやすくなります</div>
 
 <div id="joy"><div id="knob"></div></div>
-<button id="boost">前進</button>
+<button id="boost">上昇</button>
 
 <div id="start" class="overlay">
   <h1>UFO EARTH</h1>
   <p>美しい未来の地球を飛び回り、光るリングを集めよう。地上に降りることもできます。</p>
-  <p>左のスティック: 向きと上昇・降下　右の「前進」ボタン: 押している間だけ前進<br>
-     PC: WASD / 矢印キーで向き、Spaceを押している間だけ前進</p>
+  <p>左のスティック: 移動(カメラの向きが前)　右側をドラッグ: 視点を回す<br>
+     左下の「上昇」ボタン: 押している間は上昇(離すと地表へ降りる)<br>
+     PC: WASD / 矢印で移動、マウスドラッグで視点、Spaceで上昇</p>
   <p class="small">ホーム画面に追加すると全画面で遊べます</p>
   <button id="startBtn">スタート</button>
 </div>
@@ -320,14 +321,41 @@
   const scoreEl = document.getElementById("score"), timeEl = document.getElementById("time"), altEl = document.getElementById("alt");
   const startEl = document.getElementById("start"), overEl = document.getElementById("over");
   const finalEl = document.getElementById("final");
-  let state = "ready", timeLeft = 60, score = 0, speed = 0;
+  let state = "ready", timeLeft = 60, score = 0;
+
+  // 向き・視点・上昇速度
+  const heading = new THREE.Vector3(1, 0, 0);     // 機体の進行方向(地表に沿った向き)
+  const camHeading = new THREE.Vector3(1, 0, 0);  // カメラの水平方向(ドラッグで回る)
+  const lastUp = new THREE.Vector3(0, 0, 1);
+  let camPitch = 0.35;                             // カメラの見下ろし角
+  let vz = 0;
+
+  // 右側(スティック・ボタン以外)をドラッグすると視点が回る
+  let dragId = null, dragX = 0, dragY = 0;
+  addEventListener("pointerdown", e => {
+    if (dragId !== null || joyEl.contains(e.target) || e.target === boostEl) return;
+    if (e.target.closest && e.target.closest("button")) return;
+    dragId = e.pointerId; dragX = e.clientX; dragY = e.clientY;
+  });
+  addEventListener("pointermove", e => {
+    if (e.pointerId !== dragId) return;
+    const dx = e.clientX - dragX, dy = e.clientY - dragY;
+    dragX = e.clientX; dragY = e.clientY;
+    camHeading.applyAxisAngle(lastUp, -dx * 0.006);
+    camPitch = clamp(camPitch + dy * 0.004, 0.05, 1.3);
+  });
+  const dragEnd = e => { if (e.pointerId === dragId) dragId = null; };
+  addEventListener("pointerup", dragEnd);
+  addEventListener("pointercancel", dragEnd);
 
   function startGame() {
-    score = 0; timeLeft = 60; speed = 0;
+    score = 0; timeLeft = 60; vz = 0;
     // 地表の少し上、地球の表側からスタート(地表に沿って飛べる向き)
     const sd = new THREE.Vector3(0, 0, 1);
     ufo.position.copy(sd).multiplyScalar(surfaceR(0, 0, 1) + 6);
-    ufo.rotation.set(0, Math.PI / 2, 0);
+    heading.set(1, 0, 0); camHeading.set(1, 0, 0); camPitch = 0.35;
+    ufo.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+      new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)));
     rings.forEach(placeRing);
     state = "playing";
     startEl.classList.add("hidden");
@@ -346,34 +374,61 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const k = (...codes) => codes.some(c => keys[c]);
 
+  // Sky風の操作: 移動はカメラの向き基準、右側のドラッグで視点を回す、Spaceで上昇
   function update(dt) {
-    const turn = clamp((k("ArrowRight", "KeyD") ? 1 : 0) - (k("ArrowLeft", "KeyA") ? 1 : 0) + joy.x, -1, 1);
-    const climb = clamp((k("ArrowUp", "KeyW") ? 1 : 0) - (k("ArrowDown", "KeyS") ? 1 : 0) - joy.y, -1, 1);
+    const ix = clamp((k("ArrowRight", "KeyD") ? 1 : 0) - (k("ArrowLeft", "KeyA") ? 1 : 0) + joy.x, -1, 1);
+    const iy = clamp((k("ArrowUp", "KeyW") ? 1 : 0) - (k("ArrowDown", "KeyS") ? 1 : 0) - joy.y, -1, 1);
+    const rising = k("Space") || touchBoost;
 
-    ufo.rotation.y -= turn * dt * 2.2;
-    ufo.rotation.x = clamp(ufo.rotation.x + climb * dt * 0.9, -1.0, 1.0);
-    ufo.rotation.z += (-turn * 0.6 - ufo.rotation.z) * Math.min(1, dt * 4);
-
-    // 地表からの高さ
+    // 現在地の上方向(地表の法線)と、カメラの水平方向
     const pr = ufo.position.length();
-    const dir = ufo.position.clone().divideScalar(pr);
-    const ground = surfaceR(dir.x, dir.y, dir.z);
+    const up = ufo.position.clone().divideScalar(pr);
+    lastUp.copy(up);
+    const ground = surfaceR(up.x, up.y, up.z);
     const alt = pr - ground;
 
-    // スペースキー(またはBOOSTボタン)を押している間だけ前進
-    const forward = k("Space") || touchBoost;
-    let target = forward ? 40 : 0;
-    if (alt < 2.5) target *= 0.5; // 地表近くはゆっくり(着陸しやすい)
-    speed += (target - speed) * Math.min(1, dt * (forward ? 3 : 5));
-    ufo.translateZ(-speed * dt);
+    const view = camHeading.clone().addScaledVector(up, -camHeading.dot(up));
+    if (view.lengthSq() < 1e-6) view.set(1, 0, 0).addScaledVector(up, -up.x);
+    view.normalize();
+    camHeading.copy(view);
+    const right = new THREE.Vector3().crossVectors(view, up);
 
-    // 地形にぶつからない(地表で止まる)、遠くに行きすぎない
-    const r2 = ufo.position.length();
-    const d2 = ufo.position.clone().divideScalar(r2);
-    const g2 = surfaceR(d2.x, d2.y, d2.z);
-    const minR = g2 + 0.45;
-    if (r2 < minR) ufo.position.multiplyScalar(minR / r2);
-    if (r2 > PLANET_R + 90) ufo.position.multiplyScalar((PLANET_R + 90) / r2);
+    // 移動方向(スティック/WASDの向き)
+    const moveDir = new THREE.Vector3().addScaledVector(view, iy).addScaledVector(right, ix);
+    const mag = Math.min(1, moveDir.length());
+    const moving = mag > 0.05;
+    if (moving) moveDir.normalize();
+
+    // 機体の向きは進行方向へ回る
+    if (moving) heading.lerp(moveDir, Math.min(1, dt * 6));
+    heading.addScaledVector(up, -heading.dot(up));
+    if (heading.lengthSq() < 1e-6) heading.copy(view);
+    heading.normalize();
+
+    // 水平移動(球面に沿って動き、高さは保つ)
+    let hs = 40 * mag;
+    if (alt < 2.5) hs *= 0.5; // 地表近くはゆっくり(着陸しやすい)
+    if (moving) {
+      ufo.position.copy(ufo.position.clone().addScaledVector(moveDir, hs * dt).normalize().multiplyScalar(pr));
+    }
+
+    // 上昇・降下(上を押していなければ地表へ降りる)
+    vz += ((rising ? 22 : -6) - vz) * Math.min(1, dt * 4);
+    const p2 = ufo.position.length();
+    const u2 = ufo.position.clone().divideScalar(p2);
+    let r2 = p2 + vz * dt;
+    const minR = surfaceR(u2.x, u2.y, u2.z) + 0.45;
+    if (r2 < minR) { r2 = minR; vz = 0; } // 着陸
+    if (r2 > PLANET_R + 90) { r2 = PLANET_R + 90; vz = Math.min(vz, 0); }
+    ufo.position.copy(u2).multiplyScalar(r2);
+
+    // 機体の姿勢(地表の上方向を保ち、進行方向を向く)
+    const u3 = ufo.position.clone().normalize();
+    const fwd = heading.clone().addScaledVector(u3, -heading.dot(u3)).normalize();
+    const zAxis = fwd.clone().negate();
+    const xAxis = new THREE.Vector3().crossVectors(u3, zAxis).normalize();
+    const targetQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, u3, zAxis));
+    ufo.quaternion.slerp(targetQ, Math.min(1, dt * 8));
     ufo.updateMatrixWorld(true);
 
     // リング取得
@@ -385,14 +440,18 @@
       }
     });
 
-    // カメラ追従(地表より下に入らない)
-    const camTarget = new THREE.Vector3(0, 2.2, 7).applyMatrix4(ufo.matrixWorld);
-    camera.position.lerp(camTarget, Math.min(1, dt * 5));
+    // カメラ: UFOの周りを、ドラッグで決めた角度で追従(地表より下に入らない)
+    const camUp = ufo.position.clone().normalize();
+    const camDist = 9;
+    const offset = camHeading.clone().multiplyScalar(-Math.cos(camPitch) * camDist)
+      .addScaledVector(camUp, Math.sin(camPitch) * camDist);
+    camera.position.lerp(ufo.position.clone().add(offset), Math.min(1, dt * 8));
     const cr = camera.position.length();
     const cd = camera.position.clone().divideScalar(cr);
     const cg = surfaceR(cd.x, cd.y, cd.z) + 0.6;
     if (cr < cg) camera.position.setLength(cg);
-    camera.lookAt(new THREE.Vector3(0, 0, -8).applyMatrix4(ufo.matrixWorld));
+    camera.up.copy(camUp);
+    camera.lookAt(ufo.position);
 
     // 時間
     timeLeft -= dt;
