@@ -112,9 +112,9 @@
          + Math.cos(x * 5.3 + y * 4.1 - z * 3.3) * 0.08;
   }
 
-  // 地球の大きさ: UFOの約10倍の直径(半径100)
-  const PLANET_R = 100;
-  const HS = 10;          // 起伏のスケール(地球の大きさに合わせる)
+  // 地球の大きさ: 直径を前の2倍(半径200)
+  const PLANET_R = 200;
+  const HS = 20;          // 起伏のスケール(地球の大きさに合わせる)
 
   // 単位方向ベクトルの地表の高さ(海は負)、UFOの単位に換算する前の値
   function terrainH(x, y, z) {
@@ -481,7 +481,7 @@
       update(dt);
     } else {
       // 待機中は地球の周りをゆっくり回るカメラ
-      camera.position.set(Math.sin(elapsed * 0.15) * 340, 90, Math.cos(elapsed * 0.15) * 340);
+      camera.position.set(Math.sin(elapsed * 0.15) * 560, 180, Math.cos(elapsed * 0.15) * 560);
       camera.lookAt(0, 0, 0);
     }
     renderer.render(scene, camera);
