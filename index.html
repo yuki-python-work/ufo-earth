@@ -86,7 +86,7 @@
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   scene.add(new THREE.HemisphereLight(0xcfeaff, 0x5a8a3a, 0.6));
-  const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
+  const sun = new THREE.DirectionalLight(0xffffff, 1.5);
   sun.position.set(600, 400, 300);
   scene.add(sun);
 
@@ -98,7 +98,7 @@
       fragmentShader: `varying vec3 vP;
         void main(){
           float h = normalize(vP).y;
-          vec3 horizon = vec3(1.0, 0.95, 0.82);
+          vec3 horizon = vec3(0.86, 0.94, 1.0);
           vec3 zenith  = vec3(0.16, 0.5, 0.98);
           float t = smoothstep(-0.05, 0.6, h);
           gl_FragColor = vec4(mix(horizon, zenith, t), 1.0);
