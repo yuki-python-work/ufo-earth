@@ -38,10 +38,10 @@
     border-radius:50%;border:2px solid rgba(255,255,255,.6);background:rgba(255,255,255,.12);}
   #knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
     background:rgba(255,255,255,.45);pointer-events:none;}
-  #boost{position:fixed;right:24px;bottom:calc(env(safe-area-inset-bottom) + 40px);width:96px;height:96px;
-    border-radius:50%;border:2px solid rgba(255,255,255,.8);background:rgba(255,255,255,.2);color:#fff;
-    font-size:16px;font-weight:700;margin:0;padding:0;}
-  #boost.on{background:rgba(255,255,255,.55);}
+  #joy2{position:fixed;right:24px;bottom:calc(env(safe-area-inset-bottom) + 28px);width:130px;height:130px;
+    border-radius:50%;border:2px solid rgba(255,255,255,.6);background:rgba(255,255,255,.12);}
+  #knob2{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
+    background:rgba(255,255,255,.45);pointer-events:none;}
 </style>
 </head>
 <body>
@@ -54,14 +54,14 @@
 <div id="rot">横向きにするとプレイしやすくなります</div>
 
 <div id="joy"><div id="knob"></div></div>
-<button id="boost">上昇</button>
+<div id="joy2"><div id="knob2"></div></div>
 
 <div id="start" class="overlay">
   <h1>UFO EARTH</h1>
   <p>美しい未来の地球を飛び回り、光るリングを集めよう。地上に降りることもできます。</p>
   <p>左のスティック: 移動(カメラの向きが前)　右側をドラッグ: 視点を回す<br>
-     左下の「上昇」ボタン: 押している間は上昇(離すと地表へ降りる)<br>
-     PC: WASD / 矢印で移動、マウスドラッグで視点、Spaceで上昇</p>
+     右のスティック: 上下で高度を調整(離すと高度を維持)<br>
+     PC: WASD / 矢印で移動、マウスドラッグで視点、Space / Shiftで上昇・降下</p>
   <p class="small">ホーム画面に追加すると全画面で遊べます</p>
   <button id="startBtn">スタート</button>
 </div>
@@ -309,14 +309,26 @@
   joyEl.addEventListener("pointerup", joyEnd);
   joyEl.addEventListener("pointercancel", joyEnd);
 
-  let touchBoost = false;
-  const boostEl = document.getElementById("boost");
-  const boostOn = e => { e.preventDefault(); touchBoost = true; boostEl.classList.add("on"); };
-  const boostOff = () => { touchBoost = false; boostEl.classList.remove("on"); };
-  boostEl.addEventListener("pointerdown", boostOn);
-  boostEl.addEventListener("pointerup", boostOff);
-  boostEl.addEventListener("pointercancel", boostOff);
-  boostEl.addEventListener("pointerleave", boostOff);
+  const joy2 = { x: 0, y: 0 };
+  const joy2El = document.getElementById("joy2"), knob2 = document.getElementById("knob2");
+  let joy2Id = null;
+  function joy2Move(e) {
+    const r = joy2El.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2, max = r.width / 2;
+    let dx = e.clientX - cx, dy = e.clientY - cy;
+    const len = Math.hypot(dx, dy);
+    if (len > max) { dx *= max / len; dy *= max / len; }
+    knob2.style.transform = `translate(${dx}px,${dy}px)`;
+    joy2.x = dx / max; joy2.y = dy / max;
+  }
+  joy2El.addEventListener("pointerdown", e => { joy2Id = e.pointerId; joy2El.setPointerCapture(e.pointerId); joy2Move(e); });
+  joy2El.addEventListener("pointermove", e => { if (e.pointerId === joy2Id) joy2Move(e); });
+  const joy2End = e => {
+    if (e.pointerId !== joy2Id) return;
+    joy2Id = null; joy2.x = 0; joy2.y = 0; knob2.style.transform = "";
+  };
+  joy2El.addEventListener("pointerup", joy2End);
+  joy2El.addEventListener("pointercancel", joy2End);
 
   // ---------- ゲーム状態 ----------
   const scoreEl = document.getElementById("score"), timeEl = document.getElementById("time"), altEl = document.getElementById("alt");
@@ -334,7 +346,7 @@
   // 右側(スティック・ボタン以外)をドラッグすると視点が回る
   let dragId = null, dragX = 0, dragY = 0;
   addEventListener("pointerdown", e => {
-    if (dragId !== null || joyEl.contains(e.target) || e.target === boostEl) return;
+    if (dragId !== null || joyEl.contains(e.target) || joy2El.contains(e.target)) return;
     if (e.target.closest && e.target.closest("button")) return;
     dragId = e.pointerId; dragX = e.clientX; dragY = e.clientY;
   });
@@ -379,7 +391,7 @@
   function update(dt) {
     const ix = clamp((k("ArrowRight", "KeyD") ? 1 : 0) - (k("ArrowLeft", "KeyA") ? 1 : 0) + joy.x, -1, 1);
     const iy = clamp((k("ArrowUp", "KeyW") ? 1 : 0) - (k("ArrowDown", "KeyS") ? 1 : 0) - joy.y, -1, 1);
-    const rising = k("Space") || touchBoost;
+    const vIn = clamp((k("Space") ? 1 : 0) - (k("ShiftLeft", "ShiftRight") ? 1 : 0) - joy2.y, -1, 1);
 
     // 現在地の上方向(地表の法線)と、カメラの水平方向
     const pr = ufo.position.length();
@@ -413,8 +425,8 @@
       ufo.position.copy(ufo.position.clone().addScaledVector(moveDir, hs * dt).normalize().multiplyScalar(pr));
     }
 
-    // 上昇・降下(上を押していなければ地表へ降りる)
-    vz += ((rising ? 22 : -6) - vz) * Math.min(1, dt * 4);
+    // 上昇・降下(右スティック)
+    vz += (vIn * 22 - vz) * Math.min(1, dt * 4); // 右スティックで上下、離すと高度を維持
     const p2 = ufo.position.length();
     const u2 = ufo.position.clone().divideScalar(p2);
     let r2 = p2 + vz * dt;
