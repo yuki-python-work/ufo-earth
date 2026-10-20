@@ -84,9 +84,9 @@
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 1000);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   scene.add(new THREE.HemisphereLight(0xcfeaff, 0x5a8a3a, 0.6));
-  const sun = new THREE.DirectionalLight(0xfff6e6, 1.4);
+  const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
   sun.position.set(600, 400, 300);
   scene.add(sun);
 
@@ -98,8 +98,8 @@
       fragmentShader: `varying vec3 vP;
         void main(){
           float h = normalize(vP).y;
-          vec3 horizon = vec3(0.80, 0.93, 1.0);
-          vec3 zenith  = vec3(0.22, 0.52, 0.96);
+          vec3 horizon = vec3(1.0, 0.95, 0.82);
+          vec3 zenith  = vec3(0.16, 0.5, 0.98);
           float t = smoothstep(-0.05, 0.6, h);
           gl_FragColor = vec4(mix(horizon, zenith, t), 1.0);
         }`,
@@ -139,8 +139,8 @@
     const v = 0.92 + 0.08 * noise3(x * 25, y * 25, z * 25);
     let r, g, b;
     if (h < 0.12)      { r = 232; g = 214; b = 160; }
-    else if (h < 0.6)  { r = 118; g = 206; b = 72; }
-    else if (h < 0.95) { r = 72;  g = 160; b = 60; }
+    else if (h < 0.6)  { r = 140; g = 220; b = 80; }
+    else if (h < 0.95) { r = 60;  g = 175; b = 70; }
     else if (h < 1.25) { r = 140; g = 120; b = 96; }
     else               { r = 240; g = 244; b = 250; }
     return [r * v / 255, g * v / 255, b * v / 255];
@@ -169,7 +169,7 @@
   // 海面
   const sea = new THREE.Mesh(
     new THREE.SphereGeometry(PLANET_R, 256, 256),
-    new THREE.MeshPhongMaterial({ color: 0x1e9ad6, transparent: true, opacity: 0.8, shininess: 90, specular: 0xbfe9ff })
+    new THREE.MeshPhongMaterial({ color: 0x2fd3d8, transparent: true, opacity: 0.75, shininess: 90, specular: 0xdffbff })
   );
   scene.add(sea);
 
@@ -212,6 +212,26 @@
     })
   ));
 
+  // ---------- 未来の街(ガラスのドーム) ----------
+  {
+    const glass = new THREE.MeshPhongMaterial({ color: 0xd8f4ff, specular: 0xffffff, shininess: 180, transparent: true, opacity: 0.35, depthWrite: false });
+    const inner = new THREE.MeshPhongMaterial({ color: 0x9be88a, shininess: 10 });
+    const UPV = new THREE.Vector3(0, 1, 0);
+    for (let i = 0; i < 40; i++) {
+      let d;
+      do { d = randDir(); } while (terrainH(d.x, d.y, d.z) < 0.25);
+      const R = 3 + Math.random() * 3;
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(R, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), glass));
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(R, 40), inner);
+      floor.rotation.x = -Math.PI / 2; floor.position.y = 0.05;
+      g.add(floor);
+      g.quaternion.setFromUnitVectors(UPV, d);
+      g.position.copy(d).multiplyScalar(surfaceR(d.x, d.y, d.z));
+      scene.add(g);
+    }
+  }
+
   // ---------- UFO(銀と金の円盤、青い発光リム) ----------
   const ufo = new THREE.Group();
   ufo.rotation.order = "YXZ";
@@ -227,7 +247,7 @@
       new THREE.Vector2(0.4, -0.22),
       new THREE.Vector2(0.0, -0.2)
     ];
-    const hullMat = new THREE.MeshPhongMaterial({ color: 0xd8c58a, specular: 0xffffff, shininess: 140 });
+    const hullMat = new THREE.MeshPhongMaterial({ color: 0xe9f1f8, specular: 0xffffff, shininess: 120 });
     ufo.add(new THREE.Mesh(new THREE.LatheGeometry(hullPts, 64), hullMat));
 
     // 銀のリング帯
@@ -241,7 +261,7 @@
     // 青く光るリム
     const rim = new THREE.Mesh(
       new THREE.TorusGeometry(2.1, 0.05, 8, 96),
-      new THREE.MeshBasicMaterial({ color: 0x66ccff })
+      new THREE.MeshBasicMaterial({ color: 0x3fd8ff })
     );
     rim.rotation.x = Math.PI / 2; rim.position.y = -0.04;
     ufo.add(rim);
@@ -249,7 +269,7 @@
     // コックピットのドーム
     const dome = new THREE.Mesh(
       new THREE.SphereGeometry(0.8, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshPhongMaterial({ color: 0x9fe6ff, specular: 0xffffff, shininess: 200, transparent: true, opacity: 0.6 })
+      new THREE.MeshPhongMaterial({ color: 0xcdf3ff, specular: 0xffffff, shininess: 220, transparent: true, opacity: 0.45 })
     );
     dome.position.y = 0.26; dome.scale.set(1.0, 0.7, 1.0);
     ufo.add(dome);
