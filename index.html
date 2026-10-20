@@ -19,8 +19,15 @@
   #rot{position:fixed;top:calc(env(safe-area-inset-top) + 44px);left:0;right:0;text-align:center;
     font-size:13px;opacity:.8;display:none;pointer-events:none;text-shadow:0 1px 4px rgba(0,60,120,.7);}
   @media (orientation:portrait){#rot{display:block;}}
-  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    background:rgba(10,40,80,.55);text-align:center;padding:24px;box-sizing:border-box;}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:safe center;
+    background:rgba(10,40,80,.55);text-align:center;padding:24px;box-sizing:border-box;overflow-y:auto;
+    -webkit-overflow-scrolling:touch;touch-action:pan-y;}
+  @media (max-height:500px){
+    .overlay{padding:12px 24px;}
+    .overlay h1{font-size:28px;margin:0 0 4px;}
+    .overlay p{margin:4px 0;line-height:1.5;font-size:14px;}
+    .overlay button{font-size:17px;padding:9px 30px;margin-top:10px;}
+  }
   .overlay h1{font-size:44px;letter-spacing:5px;margin:0 0 10px;color:#fff;text-shadow:0 2px 14px #0a3c78;}
   .overlay p{margin:8px 0;line-height:1.7;max-width:420px;text-shadow:0 1px 6px #0a3c78;}
   .small{font-size:13px;opacity:.8;}
