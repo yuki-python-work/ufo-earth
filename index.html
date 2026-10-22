@@ -389,6 +389,8 @@
   const camHeading = new THREE.Vector3(1, 0, 0);  // カメラの水平方向(ドラッグで回る)
   const lastUp = new THREE.Vector3(0, 0, 1);
   let camPitch = 0.35;                             // カメラの見下ろし角
+  const moveH = new THREE.Vector3(1, 0, 0);        // 移動の水平方向(不感帯で視点に追従)
+  let movePitch = 0.35;                            // 移動の見下ろし角(不感帯で視点に追従)
   let vz = 0;
 
   // 右側(スティック・ボタン以外)をドラッグすると視点が回る
@@ -513,6 +515,7 @@
     const sd = new THREE.Vector3(0, 0, 1);
     ufo.position.copy(sd).multiplyScalar(surfaceR(0, 0, 1) + 6);
     heading.set(1, 0, 0); camHeading.set(1, 0, 0); camPitch = 0.35;
+    moveH.set(1, 0, 0); movePitch = 0.35;
     ufo.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
       new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)));
     rings.forEach(placeRing);
@@ -550,10 +553,22 @@
     if (view.lengthSq() < 1e-6) view.set(1, 0, 0).addScaledVector(up, -up.x);
     view.normalize();
     camHeading.copy(view);
-    const right = new THREE.Vector3().crossVectors(view, up);
 
-    // 前方向は視点の角度に合わせて上下も向く(見下ろすと下へ、見上げると上へ進む)
-    const fwd3 = view.clone().multiplyScalar(Math.cos(camPitch)).addScaledVector(up, -Math.sin(camPitch));
+    // 不感帯: 視点が移動の向きから上下左右それぞれ±15°以内なら、移動の向きは変わらない。
+    // 15°を超えた分だけ、移動の向きが視点に追従する。
+    const DEAD = 15 * Math.PI / 180;
+    moveH.addScaledVector(up, -moveH.dot(up));
+    if (moveH.lengthSq() < 1e-6) moveH.copy(view);
+    moveH.normalize();
+    const yawDiff = Math.atan2(new THREE.Vector3().crossVectors(moveH, view).dot(up), moveH.dot(view));
+    const yawExcess = yawDiff - clamp(yawDiff, -DEAD, DEAD);
+    if (yawExcess !== 0) moveH.applyAxisAngle(up, yawExcess);
+    movePitch = clamp(movePitch, camPitch - DEAD, camPitch + DEAD);
+
+    const right = new THREE.Vector3().crossVectors(moveH, up);
+
+    // 前方向は移動の向きに合わせて上下も向く(見下ろすと下へ、見上げると上へ進む)
+    const fwd3 = moveH.clone().multiplyScalar(Math.cos(movePitch)).addScaledVector(up, -Math.sin(movePitch));
     const moveDir = new THREE.Vector3().addScaledVector(fwd3, iy).addScaledVector(right, ix);
     const mag = Math.min(1, moveDir.length());
     const moving = mag > 0.05;
