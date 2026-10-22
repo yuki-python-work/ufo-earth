@@ -554,9 +554,9 @@
     view.normalize();
     camHeading.copy(view);
 
-    // 不感帯: 視点が移動の向きから上下左右それぞれ±15°以内なら、移動の向きは変わらない。
-    // 15°を超えた分だけ、移動の向きが視点に追従する。
-    const DEAD = 15 * Math.PI / 180;
+    // 不感帯: 視点が移動の向きから上下左右それぞれ±30°以内なら、移動の向きは変わらない。
+    // 30°を超えた分だけ、移動の向きが視点に追従する。
+    const DEAD = 30 * Math.PI / 180;
     moveH.addScaledVector(up, -moveH.dot(up));
     if (moveH.lengthSq() < 1e-6) moveH.copy(view);
     moveH.normalize();
