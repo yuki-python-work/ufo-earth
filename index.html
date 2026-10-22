@@ -313,7 +313,7 @@
   scene.add(ufo);
 
   // ---------- リング(目標) ----------
-  const ringGeo = new THREE.TorusGeometry(3.6, 0.28, 12, 48);
+  const ringGeo = new THREE.TorusGeometry(7.2, 0.56, 12, 48);
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
   const rings = [];
 
@@ -620,7 +620,7 @@
     // リング取得
     rings.forEach(m => {
       m.rotation.z += dt * 0.8;
-      if (ufo.position.distanceTo(m.position) < 5.2) {
+      if (ufo.position.distanceTo(m.position) < 10.4) {
         score += 100;
         timeLeft += 3; // リングを取ると制限時間が3秒増える
         playCollect();
