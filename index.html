@@ -622,6 +622,7 @@
       m.rotation.z += dt * 0.8;
       if (ufo.position.distanceTo(m.position) < 5.2) {
         score += 100;
+        timeLeft += 3; // リングを取ると制限時間が3秒増える
         playCollect();
         placeRing(m);
       }
