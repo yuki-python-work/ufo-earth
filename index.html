@@ -391,7 +391,7 @@
   let camPitch = 0.35;                             // カメラの見下ろし角
   const moveH = new THREE.Vector3(1, 0, 0);        // 移動の水平方向(不感帯で視点に追従)
   let movePitch = 0;                               // 移動の見下ろし角(0 = 地面に水平。不感帯を超えた視点の角度に追従)
-  let vz = 0;
+  let hoverAlt = 6;                                // 地表からの目標の高さ
 
   // 右側(スティック・ボタン以外)をドラッグすると視点が回る
   let dragId = null, dragX = 0, dragY = 0;
@@ -510,7 +510,7 @@
 
   function startGame() {
     ensureAudio();
-    score = 0; timeLeft = 60; vz = 0;
+    score = 0; timeLeft = 60; hoverAlt = 6;
     // 地表の少し上、地球の表側からスタート(地表に沿って飛べる向き)
     const sd = new THREE.Vector3(0, 0, 1);
     ufo.position.copy(sd).multiplyScalar(surfaceR(0, 0, 1) + 6);
@@ -590,15 +590,18 @@
       ufo.position.copy(ufo.position.clone().addScaledVector(tangentMove, hs * dt).normalize().multiplyScalar(pr));
     }
 
-    // 上昇・降下(右スティック + 上下の視点に合わせた前進の高度成分)
-    const vTarget = vIn * 40 + radialMove * hs;
-    vz += (vTarget - vz) * Math.min(1, dt * 4); // 離すと高度を維持
+    // 高度は「地表からの高さ(hoverAlt)」で管理する。地形に合わせて上下するので、坂でも地面を擦らない。
+    // 右スティック上下と、上下に傾けた前進の高度成分で hoverAlt を変える。離すと、その高さを維持する。
+    hoverAlt += (vIn * 40 + radialMove * hs) * dt;
+    hoverAlt = clamp(hoverAlt, 0.45, 80);
     const p2 = ufo.position.length();
     const u2 = ufo.position.clone().divideScalar(p2);
-    let r2 = p2 + vz * dt;
-    const minR = surfaceR(u2.x, u2.y, u2.z) + 0.45;
-    if (r2 < minR) { r2 = minR; vz = 0; } // 着陸
-    if (r2 > PLANET_R + 90) { r2 = PLANET_R + 90; vz = Math.min(vz, 0); }
+    const groundR = surfaceR(u2.x, u2.y, u2.z);
+    const targetR = groundR + hoverAlt;
+    const fAlt = 1 - Math.exp(-dt * 10); // 地形の変化へのなめらかな追従
+    let r2 = p2 + (targetR - p2) * fAlt;
+    if (r2 < groundR + 0.45) r2 = groundR + 0.45; // 地中に入らない(安全のため)
+    if (r2 > PLANET_R + 90) r2 = PLANET_R + 90;
     ufo.position.copy(u2).multiplyScalar(r2);
 
     // 機体の姿勢(地表の上方向を保ち、進行方向を向く)
@@ -638,7 +641,7 @@
     if (timeLeft <= 0) { timeLeft = 0; endGame(); }
     scoreEl.textContent = score;
     timeEl.textContent = Math.ceil(timeLeft);
-    altEl.textContent = alt < 0.9 ? "着陸中" : "ALT " + Math.round(alt * 10) / 10;
+    altEl.textContent = hoverAlt < 0.9 ? "着陸中" : "ALT " + Math.round(hoverAlt * 10) / 10;
     updateAmbience(dt, up, alt);
   }
 
