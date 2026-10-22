@@ -390,7 +390,7 @@
   const lastUp = new THREE.Vector3(0, 0, 1);
   let camPitch = 0.35;                             // カメラの見下ろし角
   const moveH = new THREE.Vector3(1, 0, 0);        // 移動の水平方向(不感帯で視点に追従)
-  let movePitch = 0.35;                            // 移動の見下ろし角(不感帯で視点に追従)
+  let movePitch = 0;                               // 移動の見下ろし角(0 = 地面に水平。不感帯を超えた視点の角度に追従)
   let vz = 0;
 
   // 右側(スティック・ボタン以外)をドラッグすると視点が回る
@@ -515,7 +515,7 @@
     const sd = new THREE.Vector3(0, 0, 1);
     ufo.position.copy(sd).multiplyScalar(surfaceR(0, 0, 1) + 6);
     heading.set(1, 0, 0); camHeading.set(1, 0, 0); camPitch = 0.35;
-    moveH.set(1, 0, 0); movePitch = 0.35;
+    moveH.set(1, 0, 0); movePitch = 0;
     ufo.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
       new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)));
     rings.forEach(placeRing);
