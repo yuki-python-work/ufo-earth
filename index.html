@@ -388,10 +388,7 @@
   const heading = new THREE.Vector3(1, 0, 0);     // 機体の進行方向(地表に沿った向き)
   const camHeading = new THREE.Vector3(1, 0, 0);  // カメラの水平方向(ドラッグで回る)
   const lastUp = new THREE.Vector3(0, 0, 1);
-  let camPitch = 0.35;                             // カメラの見下ろし角(現在値)
-  let pitchTarget = 0.35;                          // 指の操作で決まる目標の見下ろし角
-  let yawPending = 0;                              // まだ反映していない水平回転量(ラジアン)
-  const CAM_SMOOTH = 6;                            // なめらかさ(大きいほど速く追いつく)
+  let camPitch = 0.35;                             // カメラの見下ろし角
   let vz = 0;
 
   // 右側(スティック・ボタン以外)をドラッグすると視点が回る
@@ -405,8 +402,8 @@
     if (e.pointerId !== dragId) return;
     const dx = e.clientX - dragX, dy = e.clientY - dragY;
     dragX = e.clientX; dragY = e.clientY;
-    yawPending += -dx * 0.006;                               // 目標の水平回転量を積み上げる
-    pitchTarget = clamp(pitchTarget + dy * 0.004, -0.5, 1.3); // 目標の見下ろし角
+    camHeading.applyAxisAngle(lastUp, -dx * 0.006);
+    camPitch = clamp(camPitch + dy * 0.004, -0.5, 1.3);
   });
   const dragEnd = e => { if (e.pointerId === dragId) dragId = null; };
   addEventListener("pointerup", dragEnd);
@@ -515,7 +512,7 @@
     // 地表の少し上、地球の表側からスタート(地表に沿って飛べる向き)
     const sd = new THREE.Vector3(0, 0, 1);
     ufo.position.copy(sd).multiplyScalar(surfaceR(0, 0, 1) + 6);
-    heading.set(1, 0, 0); camHeading.set(1, 0, 0); camPitch = 0.35; pitchTarget = 0.35; yawPending = 0;
+    heading.set(1, 0, 0); camHeading.set(1, 0, 0); camPitch = 0.35;
     ufo.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
       new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)));
     rings.forEach(placeRing);
@@ -546,14 +543,6 @@
     const pr = ufo.position.length();
     const up = ufo.position.clone().divideScalar(pr);
     lastUp.copy(up);
-
-    // 視点のなめらかな追従(指示された目標値へ、指数的に近づく)
-    const f = 1 - Math.exp(-CAM_SMOOTH * dt);
-    const yawStep = yawPending * f;
-    camHeading.applyAxisAngle(up, yawStep);
-    yawPending -= yawStep;
-    camPitch += (pitchTarget - camPitch) * f;
-
     const ground = surfaceR(up.x, up.y, up.z);
     const alt = pr - ground;
 
