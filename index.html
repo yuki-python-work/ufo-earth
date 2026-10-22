@@ -119,13 +119,20 @@
   // 単位方向ベクトルの地表の高さ(海は負)、UFOの単位に換算する前の値
   function terrainH(x, y, z) {
     const n = noise3(x * 2.2, y * 2.2, z * 2.2);
-    if (n < 0.05) return -0.3 + noise3(x * 9, y * 9, z * 9) * 0.05;
+    // 陸の高さ(起伏あり)
     const base = (n - 0.05) * 0.8;
     const detail = noise3(x * 12, y * 12, z * 12) * 0.12 + noise3(x * 30, y * 30, z * 30) * 0.03
                  + noise3(x * 70, y * 70, z * 70) * 0.008
                  + noise3(x * 160, y * 160, z * 160) * 0.003;
-    return 0.05 + base + detail;
+    const landH = 0.05 + base + detail;
+    // 海底(ゆるやかな深さ)
+    const seaH = -0.3 + noise3(x * 9, y * 9, z * 9) * 0.05;
+    // 境目を滑らかにつなぐ(n が 0〜0.1 の間で、海底から陸へ緩やかに移り変わる)
+    const s = clamp01((n - 0.0) / 0.1);
+    const w = s * s * (3 - 2 * s); // smoothstep
+    return seaH + (landH - seaH) * w;
   }
+  function clamp01(v) { return Math.max(0, Math.min(1, v)); }
   // 地表の半径(中心からの距離)
   function surfaceR(x, y, z) {
     const l = Math.hypot(x, y, z);
