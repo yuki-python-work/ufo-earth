@@ -805,7 +805,7 @@
       trailSide.crossVectors(trailTan, trailToCam);
       if (trailSide.lengthSq() < 1e-9) trailSide.set(1, 0, 0);
       trailSide.normalize();
-      const w = 0.35 * scale * (0.15 + 0.85 * (i / (TRAIL_N - 1)));   // 細く。後ろ(古い側)ほど細い
+      const w = 0.2 * scale * (0.15 + 0.85 * (i / (TRAIL_N - 1)));   // 細く。後ろ(古い側)ほど細い
       const a = (p.x + trailSide.x * w), b = (p.y + trailSide.y * w), c = (p.z + trailSide.z * w);
       trailVerts.set([a, b, c], i * 6);
       trailVerts.set([2 * p.x - a, 2 * p.y - b, 2 * p.z - c], i * 6 + 3);
