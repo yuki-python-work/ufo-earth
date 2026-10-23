@@ -359,7 +359,7 @@
   const rings = [];
 
   // リングは一筆書きのルート上に並ぶ(一つ目から順に、つながった経路で取れる)
-  const ROUTE_STEP = 26;                          // リング同士の間隔
+  const ROUTE_STEP = 52;                          // リング同士の間隔
   const routeP = new THREE.Vector3();             // ルートの末端の位置
   const routeDir = new THREE.Vector3(1, 0, 0);    // ルートの末端での進行方向(接線)
   // ルートの末端から次のリングを置き、末端を進める。配列の順番は取った順と同じ。
@@ -578,7 +578,7 @@
     });
   }
 
-  const CLEAR_SCORE = 2500;
+  const CLEAR_SCORE = 3000;
   const clearEl = document.getElementById("clear");
   const clearScoreEl = document.getElementById("clearScore");
   const nextBtn = document.getElementById("nextBtn");
