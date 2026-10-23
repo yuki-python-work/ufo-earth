@@ -681,49 +681,57 @@
     clearEl.classList.remove("hidden");
   }
   // ---------- ワープ(クリア後の星間移動) ----------
-  // 1) カメラが引く  2) UFOが白く2回点滅  3) カメラは止まったまま、UFOが急上昇(白い軌跡)  4) 次の星の読み込み
+  // 1) カメラが引く  2) カメラは止まったまま、UFOが急上昇(後ろに白い線の軌跡)  3) 次の星の読み込み
   const warpEl = document.getElementById("warp");
   const warpTextEl = document.getElementById("warpText");
   const WARP_PULL_TIME = 1.2;    // カメラが引く時間(秒)
-  const WARP_FLASH_TIME = 0.5;   // 白い点滅の時間(秒)
   const WARP_RISE_TIME = 1.6;    // UFOが上昇する時間(秒)
   let warpPhase = null, warpT = 0, warpTarget = null;
   const warpLook = new THREE.Vector3();   // 上昇中、カメラが見つめ続ける位置
 
-  // UFOの白い光(点滅に使う)
-  const ufoGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(4, 24, 16),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
-  );
-  ufo.add(ufoGlow);
-
-  // 白く光る軌跡(粒を並べて表示する)
-  const TRAIL_N = 90;
-  const trailPos = new Float32Array(TRAIL_N * 3);
+  // 白い線の軌跡: 位置の履歴から、カメラに向いた細長い帯を作る
+  const TRAIL_N = 90;                      // 軌跡の点の数
+  const trailPts = [];                     // 位置の履歴(古い順)
+  for (let i = 0; i < TRAIL_N; i++) trailPts.push(new THREE.Vector3());
+  const trailVerts = new Float32Array(TRAIL_N * 2 * 3);
+  const trailIdx = new Uint16Array((TRAIL_N - 1) * 6);
+  for (let i = 0, k = 0; i < TRAIL_N - 1; i++, k += 6) {
+    const a = i * 2;
+    trailIdx.set([a, a + 1, a + 2, a + 1, a + 3, a + 2], k);
+  }
   const trailGeo = new THREE.BufferGeometry();
-  trailGeo.setAttribute("position", new THREE.BufferAttribute(trailPos, 3));
-  const glowTex = (() => {
-    const c = document.createElement("canvas"); c.width = 64; c.height = 64;
-    const g = c.getContext("2d");
-    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gr.addColorStop(0, "rgba(255,255,255,1)");
-    gr.addColorStop(0.35, "rgba(255,255,255,0.6)");
-    gr.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-    return new THREE.CanvasTexture(c);
-  })();
-  const trail = new THREE.Points(trailGeo, new THREE.PointsMaterial({
-    map: glowTex, color: 0xffffff, size: 9, sizeAttenuation: true,
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  trailGeo.setAttribute("position", new THREE.BufferAttribute(trailVerts, 3));
+  trailGeo.setIndex(new THREE.BufferAttribute(trailIdx, 1));
+  const trail = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending
   }));
   trail.frustumCulled = false;
   trail.visible = false;
   scene.add(trail);
 
+  // 軌跡の帯を作り直す(カメラの方を向き、後ろほど細くなる)
+  const trailSide = new THREE.Vector3(), trailTan = new THREE.Vector3(), trailToCam = new THREE.Vector3();
+  function updateTrailMesh() {
+    for (let i = 0; i < TRAIL_N; i++) {
+      const p = trailPts[i];
+      const prev = trailPts[Math.max(0, i - 1)], next = trailPts[Math.min(TRAIL_N - 1, i + 1)];
+      trailTan.subVectors(next, prev);
+      trailToCam.subVectors(camera.position, p);
+      trailSide.crossVectors(trailTan, trailToCam);
+      if (trailSide.lengthSq() < 1e-9) trailSide.set(1, 0, 0);
+      trailSide.normalize();
+      const w = 0.9 * (0.15 + 0.85 * (i / (TRAIL_N - 1)));   // 後ろ(古い側)ほど細い
+      const a = (p.x + trailSide.x * w), b = (p.y + trailSide.y * w), c = (p.z + trailSide.z * w);
+      trailVerts.set([a, b, c], i * 6);
+      trailVerts.set([2 * p.x - a, 2 * p.y - b, 2 * p.z - c], i * 6 + 3);
+    }
+    trailGeo.attributes.position.needsUpdate = true;
+  }
+
   function startWarp(target) {
     clearEl.classList.add("hidden");
     warpTarget = target; warpT = 0; warpPhase = "pull"; state = "warp";
-    ufoGlow.material.opacity = 0;
     trail.visible = false;
   }
   function updateWarp(dt) {
@@ -735,17 +743,10 @@
       const dir = ufo.position.clone().normalize();
       camera.position.copy(ufo.position).addScaledVector(dir, 6 + 70 * e).addScaledVector(camHeading, -(14 + 130 * e));
       camera.lookAt(ufo.position);
-      if (k >= 1) { warpPhase = "flash"; warpT = 0; }
-    } else if (warpPhase === "flash") {
-      // UFOが白く2回点滅する(on・off・on・off)
-      const on = warpT < 0.36 && Math.floor(warpT / 0.12) % 2 === 0;
-      ufoGlow.material.opacity = on ? 0.95 : 0;
-      camera.lookAt(ufo.position);
-      if (warpT >= WARP_FLASH_TIME) {
-        ufoGlow.material.opacity = 0;
+      if (k >= 1) {
         warpPhase = "rise"; warpT = 0;
         warpLook.copy(ufo.position);
-        for (let i = 0; i < TRAIL_N; i++) ufo.position.toArray(trailPos, i * 3);
+        trailPts.forEach(v => v.copy(ufo.position));
         trail.visible = true;
       }
     } else if (warpPhase === "rise") {
@@ -756,10 +757,10 @@
       const speed = 300 + 2500 * k * k;
       ufo.position.copy(dir).multiplyScalar(pr + speed * dt);
       ufo.updateMatrixWorld(true);
-      // 白い軌跡: 古い粒を後ろにずらし、今の位置を先頭の粒として追加する
-      trailPos.copyWithin(0, 3);
-      ufo.position.toArray(trailPos, (TRAIL_N - 1) * 3);
-      trailGeo.attributes.position.needsUpdate = true;
+      // 軌跡: 古い点を一つずらして、今の位置を先頭(新しい側)に追加
+      for (let i = 0; i < TRAIL_N - 1; i++) trailPts[i].copy(trailPts[i + 1]);
+      trailPts[TRAIL_N - 1].copy(ufo.position);
+      updateTrailMesh();
       camera.lookAt(warpLook);
       if (k >= 1) { warpPhase = "load"; startLoad(); }
     }
