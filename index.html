@@ -813,6 +813,7 @@
   const warpEl = document.getElementById("warp");
   const warpTextEl = document.getElementById("warpText");
   const WARP_PULL_TIME = 0.6;    // カメラが引く時間(秒)
+  const WARP_HOLD_TIME = 0.5;    // カメラが引いた後、UFOが静止している時間(秒)
   const WARP_RISE_TIME = 1.6;    // UFOが上昇する時間(秒)
   let warpPhase = null, warpT = 0, warpTarget = null;
   const warpLook = new THREE.Vector3();   // 上昇中、カメラが見つめ続ける位置
@@ -871,7 +872,11 @@
       const dir = ufo.position.clone().normalize();
       camera.position.copy(ufo.position).addScaledVector(dir, 6 + 40 * e).addScaledVector(camHeading, -(14 + 70 * e));
       camera.lookAt(ufo.position);
-      if (k >= 1) {
+      if (k >= 1) { warpPhase = "hold"; warpT = 0; }
+    } else if (warpPhase === "hold") {
+      // カメラもUFOも静止したまま、少し間をおく
+      camera.lookAt(ufo.position);
+      if (warpT >= WARP_HOLD_TIME) {
         warpPhase = "rise"; warpT = 0;
         warpLook.copy(ufo.position);
         trailPts.forEach(v => v.copy(ufo.position));
