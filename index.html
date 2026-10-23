@@ -812,7 +812,7 @@
   // 1) カメラが引く  2) カメラは止まったまま、UFOが急上昇(後ろに白い線の軌跡)  3) 次の星の読み込み
   const warpEl = document.getElementById("warp");
   const warpTextEl = document.getElementById("warpText");
-  const WARP_PULL_TIME = 1.2;    // カメラが引く時間(秒)
+  const WARP_PULL_TIME = 0.6;    // カメラが引く時間(秒)
   const WARP_RISE_TIME = 1.6;    // UFOが上昇する時間(秒)
   let warpPhase = null, warpT = 0, warpTarget = null;
   const warpLook = new THREE.Vector3();   // 上昇中、カメラが見つめ続ける位置
