@@ -135,6 +135,19 @@
     side: THREE.BackSide, depthWrite: false
   });
 
+  // 金星の空: 硫酸の雲に覆われた、黄色みを帯びた空
+  const venusSkyMat = new THREE.ShaderMaterial({
+    vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `varying vec3 vP;
+      void main(){
+        float h = normalize(vP).y;
+        vec3 horizon = vec3(0.98, 0.9, 0.62);
+        vec3 zenith = vec3(0.9, 0.76, 0.42);
+        gl_FragColor = vec4(mix(horizon, zenith, smoothstep(-0.05, 0.6, h)), 1.0);
+      }`,
+    side: THREE.BackSide, depthWrite: false
+  });
+
   // ---------- 地形ノイズ ----------
   function noise3(x, y, z) {
     return Math.sin(x * 1.7 + Math.sin(y * 2.1 + z * 1.3) * 1.6) * 0.5
@@ -177,10 +190,22 @@
     return [Math.min(1, g * 1.35), g * 0.62, g * 0.42];
   }
 
+  // 金星の地形: 火山の平原が広がる、なだらかな地形
+  function venusH(x, y, z) {
+    return moonH(z * 1.4 + 3, x * 1.4 - 8, y * 1.4) * 0.9;
+  }
+  // 金星の色: 黄褐色の火山性の岩
+  function venusColor(h, x, y, z) {
+    const v = 0.88 + 0.12 * noise3(x * 25, y * 25, z * 25);
+    const g = clamp01(0.45 + 0.3 * h) * v;
+    return [Math.min(1, g * 1.15), g * 0.95, g * 0.6];
+  }
+
   // 単位方向ベクトルの地表の高さ(海は負)、UFOの単位に換算する前の値
   function terrainH(x, y, z) {
     if (stage === "moon") return moonH(x, y, z);
     if (stage === "mars") return marsH(x, y, z);
+    if (stage === "venus") return venusH(x, y, z);
     const n = noise3(x * 2.2, y * 2.2, z * 2.2);
     // 陸の高さ(起伏あり)
     const base = (n - 0.05) * 0.8;
@@ -606,14 +631,14 @@
   const clearEl = document.getElementById("clear");
   const clearScoreEl = document.getElementById("clearScore");
   const nextBtn = document.getElementById("nextBtn");
-  // ステージの順番: 地球 → 月 → 火星 → 地球
-  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "earth" };
-  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "地球へ戻る" };
+  // ステージの順番: 地球 → 月 → 火星 → 金星 → 地球
+  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "earth" };
+  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "地球へ戻る" };
   const drySurfaces = {}; // 月・火星の地表(初めて行くときに作る)
 
   function buildDry(kind) {
-    const heightFn = kind === "moon" ? moonH : marsH;
-    const colorFn = kind === "moon" ? moonColor : marsColor;
+    const heightFn = kind === "moon" ? moonH : (kind === "mars" ? marsH : venusH);
+    const colorFn = kind === "moon" ? moonColor : (kind === "mars" ? marsColor : venusColor);
     const geo = new THREE.SphereGeometry(1, 1300, 1300);
     const p = geo.attributes.position;
     const col = new Float32Array(p.count * 3);
@@ -639,7 +664,7 @@
     if (name !== "earth" && !drySurfaces[name]) buildDry(name);
     earthGroup.visible = name === "earth";
     for (const k in drySurfaces) drySurfaces[k].visible = (k === name);
-    skyMesh.material = name === "earth" ? earthSkyMat : (name === "moon" ? spaceMat : marsSkyMat);
+    skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat }[name];
     startGame();
   }
 
