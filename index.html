@@ -787,8 +787,8 @@
       camera.lookAt(warpLook);
       if (k >= 1) { warpPhase = "fade"; warpT = 0; }
     } else if (warpPhase === "fade") {
-      // UFOが飛び去ってから0.3秒かけて、軌跡が細くなって消える
-      const f = Math.min(1, warpT / 0.3);
+      // UFOが飛び去ってから0.1秒かけて、軌跡が細くなって消える
+      const f = Math.min(1, warpT / 0.1);
       updateTrailMesh(1 - f);
       if (f >= 1) { warpPhase = "load"; startLoad(); }
     }
