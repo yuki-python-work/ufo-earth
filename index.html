@@ -94,14 +94,14 @@
   document.body.prepend(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 1000);
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 6000);
 
   scene.add(new THREE.AmbientLight(0xdfeeff, 0.7));
   scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x3a6a2a, 0.5));
 
   // ---------- 空(グラデーションのドーム) ----------
   const skyMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(900, 32, 16),
+    new THREE.SphereGeometry(5000, 32, 16),
     new THREE.ShaderMaterial({
       vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
       fragmentShader: `varying vec3 vP;
@@ -681,30 +681,39 @@
     clearEl.classList.remove("hidden");
   }
   // ---------- ワープ(クリア後の星間移動) ----------
+  // 1) カメラが引いていく  2) カメラは止まったまま、UFOが急上昇する  3) 次の星の読み込み(ワープ中…)
   const warpEl = document.getElementById("warp");
   const warpTextEl = document.getElementById("warpText");
-  const WARP_RISE_TIME = 1.8;   // 上昇の時間(秒)
+  const WARP_PULL_TIME = 1.2;   // カメラが引く時間(秒)
+  const WARP_RISE_TIME = 1.6;   // UFOが上昇する時間(秒)
   let warpPhase = null, warpT = 0, warpTarget = null;
+  const warpLook = new THREE.Vector3();   // 上昇中、カメラが見つめ続ける位置
 
   function startWarp(target) {
     clearEl.classList.add("hidden");
-    warpTarget = target; warpT = 0; warpPhase = "rise"; state = "warp";
+    warpTarget = target; warpT = 0; warpPhase = "pull"; state = "warp";
   }
-  // クリアした星から、UFOが素早く上昇する
   function updateWarp(dt) {
-    if (warpPhase !== "rise") return;
     warpT += dt;
-    const k = Math.min(1, warpT / WARP_RISE_TIME);
-    const pr = ufo.position.length();
-    const dir = ufo.position.clone().divideScalar(pr);
-    const speed = 30 + 250 * k * k;               // だんだん速くなる
-    ufo.position.copy(dir).multiplyScalar(pr + speed * dt);
-    ufo.updateMatrixWorld(true);
-    // 速さが伝わるように、視野を広げてカメラを後ろから追う
-    camera.fov = 60 + 50 * k; camera.updateProjectionMatrix();
-    camera.position.copy(ufo.position).addScaledVector(dir, 6).addScaledVector(camHeading, -14);
-    camera.lookAt(ufo.position);
-    if (k >= 1) { warpPhase = "load"; startLoad(); }
+    if (warpPhase === "pull") {
+      // カメラが、UFOから徐々に離れていく(なめらかに)
+      const k = Math.min(1, warpT / WARP_PULL_TIME);
+      const e = k * k * (3 - 2 * k);
+      const dir = ufo.position.clone().normalize();
+      camera.position.copy(ufo.position).addScaledVector(dir, 6 + 70 * e).addScaledVector(camHeading, -(14 + 130 * e));
+      camera.lookAt(ufo.position);
+      if (k >= 1) { warpPhase = "rise"; warpT = 0; warpLook.copy(ufo.position); }
+    } else if (warpPhase === "rise") {
+      // カメラは止まったまま、UFOが急上昇する(上昇速度は以前の約10倍)
+      const k = Math.min(1, warpT / WARP_RISE_TIME);
+      const pr = ufo.position.length();
+      const dir = ufo.position.clone().divideScalar(pr);
+      const speed = 300 + 2500 * k * k;
+      ufo.position.copy(dir).multiplyScalar(pr + speed * dt);
+      ufo.updateMatrixWorld(true);
+      camera.lookAt(warpLook);
+      if (k >= 1) { warpPhase = "load"; startLoad(); }
+    }
   }
   // 次の星の読み込み中は「ワープ中…」を表示する
   function startLoad() {
@@ -712,7 +721,6 @@
     warpTextEl.textContent = "ワープ中…";
     setTimeout(() => {
       goToStage(warpTarget);          // ここでゲームが再開する
-      camera.fov = 60; camera.updateProjectionMatrix();
       warpEl.classList.add("fade");
       setTimeout(() => warpEl.classList.add("hidden"), 900);
     }, 150);
