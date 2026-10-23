@@ -354,23 +354,40 @@
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
   const rings = [];
 
-  // 地表の上(5〜25)にリングを置く
-  function placeRing(m) {
-    let p;
-    do {
-      const d = randDir();
-      const alt = 5 + Math.random() * 20;
-      p = d.clone().multiplyScalar(surfaceR(d.x, d.y, d.z) + alt);
-    } while (p.distanceTo(ufo.position) < 25);
-    m.position.copy(p);
-    m.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+  // リングは一筆書きのルート上に並ぶ(一つ目から順に、つながった経路で取れる)
+  const ROUTE_STEP = 26;                          // リング同士の間隔
+  const routeP = new THREE.Vector3();             // ルートの末端の位置
+  const routeDir = new THREE.Vector3(1, 0, 0);    // ルートの末端での進行方向(接線)
+  // ルートの末端から次のリングを置き、末端を進める。配列の順番は取った順と同じ。
+  function placeNext(m) {
+    const up = routeP.clone().normalize();
+    routeDir.addScaledVector(up, -routeDir.dot(up));
+    if (routeDir.lengthSq() < 1e-6) routeDir.set(1, 0, 0).addScaledVector(up, -up.x);
+    routeDir.normalize().applyAxisAngle(up, (Math.random() - 0.5) * 0.6); // ゆるやかに曲がる
+    const next = routeP.clone().addScaledVector(routeDir, ROUTE_STEP).normalize();
+    const alt = 8 + Math.random() * 6;
+    routeP.copy(next).multiplyScalar(surfaceR(next.x, next.y, next.z) + alt);
+    m.position.copy(routeP);
+    // リングの穴が進行方向を向き、UFOが穴を通り抜けられるように
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), routeDir);
+  }
+  // ゲーム開始時: UFOの前からルートを作り直す
+  function resetRoute() {
+    routeP.set(0, 0, 1).multiplyScalar(surfaceR(0, 0, 1) + 10);
+    routeDir.set(1, 0, 0);
+    rings.forEach(m => placeNext(m));
+  }
+  // 取ったリングは、ルートの末端に移して道を延ばす
+  function recycleRing(m) {
+    rings.push(rings.splice(rings.indexOf(m), 1)[0]);
+    placeNext(m);
   }
   for (let i = 0; i < 48; i++) {
     const m = new THREE.Mesh(ringGeo, ringMat);
     scene.add(m);
     rings.push(m);
-    placeRing(m);
   }
+  resetRoute();
 
   // ---------- 入力 ----------
   const keys = {};
@@ -616,7 +633,7 @@
     moveH.set(1, 0, 0); movePitch = 0;
     ufo.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
       new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)));
-    rings.forEach(placeRing);
+    resetRoute();
     state = "playing";
     startEl.classList.add("hidden");
     overEl.classList.add("hidden");
@@ -709,14 +726,13 @@
     ufo.updateMatrixWorld(true);
 
     // リング取得
-    rings.forEach(m => {
-      m.rotation.z += dt * 0.8;
-      if (ufo.position.distanceTo(m.position) < 10.4) {
-        score += 100;
-        timeLeft += 1; // リングを取ると制限時間が1秒増える
-        playCollect();
-        placeRing(m);
-      }
+    const got = rings.filter(m => ufo.position.distanceTo(m.position) < 10.4);
+    rings.forEach(m => m.rotateZ(dt * 0.8));
+    got.forEach(m => {
+      score += 100;
+      timeLeft += 1; // リングを取ると制限時間が1秒増える
+      playCollect();
+      recycleRing(m);
     });
 
     // カメラ: UFOの周りを、ドラッグで決めた角度で追従(地表より下に入らない)
