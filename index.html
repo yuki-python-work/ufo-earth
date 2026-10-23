@@ -72,6 +72,12 @@
   <button id="restartBtn">もう一度</button>
 </div>
 
+<div id="clear" class="overlay hidden">
+  <h1>CLEAR</h1>
+  <p>スコア <span id="clearScore" style="font-size:32px;color:#ffe066">0</span></p>
+  <button id="nextBtn">月へ</button>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
@@ -88,7 +94,7 @@
   scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x3a6a2a, 0.5));
 
   // ---------- 空(グラデーションのドーム) ----------
-  scene.add(new THREE.Mesh(
+  const skyMesh = new THREE.Mesh(
     new THREE.SphereGeometry(900, 32, 16),
     new THREE.ShaderMaterial({
       vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
@@ -102,7 +108,20 @@
         }`,
       side: THREE.BackSide, depthWrite: false
     })
-  ));
+  );
+  scene.add(skyMesh);
+  const earthSkyMat = skyMesh.material;
+  const spaceMat = new THREE.ShaderMaterial({
+    vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `varying vec3 vP;
+      void main(){
+        vec3 d = normalize(vP);
+        float h = fract(sin(dot(floor(d * 220.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        float star = step(0.9965, h);
+        gl_FragColor = vec4(vec3(0.01, 0.012, 0.025) + vec3(star), 1.0);
+      }`,
+    side: THREE.BackSide, depthWrite: false
+  });
 
   // ---------- 地形ノイズ ----------
   function noise3(x, y, z) {
@@ -116,8 +135,24 @@
   const PLANET_R = 200;
   const HS = 10;          // 起伏のスケール(前の半分)
 
+  // 今いるステージ: "earth" または "moon"
+  let stage = "earth";
+  function smoothstep01(a, b, v) { const s = clamp01((v - a) / (b - a)); return s * s * (3 - 2 * s); }
+  // 月の地形: ゆるやかな起伏と、くぼんだクレーター(海はない)
+  function moonH(x, y, z) {
+    const base = 0.2 + 0.25 * noise3(x * 1.6, y * 1.6, z * 1.6) + 0.08 * noise3(x * 6, y * 6, z * 6);
+    const crater = smoothstep01(0.45, 0.9, noise3(x * 3.5 + 7, y * 3.5, z * 3.5 - 4));
+    return base - 0.5 * crater + 0.03 * noise3(x * 25, y * 25, z * 25);
+  }
+  function moonColor(h, x, y, z) {
+    const v = 0.85 + 0.15 * noise3(x * 25, y * 25, z * 25);
+    const g = clamp01(0.42 + 0.35 * h) * v;
+    return [g, g, g * 0.98];
+  }
+
   // 単位方向ベクトルの地表の高さ(海は負)、UFOの単位に換算する前の値
   function terrainH(x, y, z) {
+    if (stage === "moon") return moonH(x, y, z);
     const n = noise3(x * 2.2, y * 2.2, z * 2.2);
     // 陸の高さ(起伏あり)
     const base = (n - 0.05) * 0.8;
@@ -187,19 +222,21 @@
     ctx.putImageData(img, 0, 0);
     return new THREE.CanvasTexture(c);
   })();
+  const earthGroup = new THREE.Group();
+  scene.add(earthGroup);
   const earth = new THREE.Mesh(earthGeo, new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 8, specular: 0x222222 }));
-  scene.add(earth);
+  earthGroup.add(earth);
 
   // 海面
   const sea = new THREE.Mesh(
     new THREE.SphereGeometry(PLANET_R, 256, 256),
     new THREE.MeshPhongMaterial({ color: 0x2fd3d8, transparent: true, opacity: 0.75, shininess: 90, specular: 0xdffbff })
   );
-  scene.add(sea);
+  earthGroup.add(sea);
 
 
   // 大気の輝き
-  scene.add(new THREE.Mesh(
+  earthGroup.add(new THREE.Mesh(
     new THREE.SphereGeometry(PLANET_R + 24, 64, 64),
     new THREE.ShaderMaterial({
       vertexShader: `varying vec3 vN;
@@ -228,7 +265,7 @@
       g.add(floor);
       g.quaternion.setFromUnitVectors(UPV, d);
       g.position.copy(d).multiplyScalar(surfaceR(d.x, d.y, d.z));
-      scene.add(g);
+      earthGroup.add(g);
     }
   }
 
@@ -476,6 +513,11 @@
   function updateAmbience(dt, up, alt) {
     if (!amb || !audioCtx || audioCtx.state !== "running") return;
     const now = audioCtx.currentTime;
+    if (stage === "moon") {
+      amb.seaG.gain.setTargetAtTime(0, now, 0.4);
+      amb.windG.gain.setTargetAtTime(0, now, 0.4);
+      return;
+    }
     const h = terrainH(up.x, up.y, up.z);
     const overSea = h < 0;
     const near = clamp(1 - alt / 40, 0, 1);
@@ -514,6 +556,55 @@
       o.stop(start + 0.45);
     });
   }
+
+  const CLEAR_SCORE = 3000;
+  const clearEl = document.getElementById("clear");
+  const clearScoreEl = document.getElementById("clearScore");
+  const nextBtn = document.getElementById("nextBtn");
+  let moonMesh = null;
+
+  function buildMoon() {
+    const geo = new THREE.SphereGeometry(1, 800, 800);
+    const p = geo.attributes.position;
+    const col = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) {
+      let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const l = Math.hypot(x, y, z); x /= l; y /= l; z /= l;
+      const h = moonH(x, y, z);
+      p.setXYZ(i, x * (PLANET_R + h * HS), y * (PLANET_R + h * HS), z * (PLANET_R + h * HS));
+      col.set(moonColor(h, x, y, z), i * 3);
+    }
+    p.needsUpdate = true;
+    geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    moonMesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 }));
+    scene.add(moonMesh);
+  }
+
+  function goToStage(name) {
+    clearEl.classList.add("hidden");
+    if (name === "moon") {
+      if (!moonMesh) buildMoon();
+      moonMesh.visible = true;
+      earthGroup.visible = false;
+      skyMesh.material = spaceMat;
+      stage = "moon";
+    } else {
+      if (moonMesh) moonMesh.visible = false;
+      earthGroup.visible = true;
+      skyMesh.material = earthSkyMat;
+      stage = "earth";
+    }
+    startGame();
+  }
+
+  function showClear() {
+    state = "clear";
+    clearScoreEl.textContent = score;
+    nextBtn.textContent = stage === "earth" ? "月へ" : "地球へ戻る";
+    clearEl.classList.remove("hidden");
+  }
+  nextBtn.addEventListener("click", () => goToStage(stage === "earth" ? "moon" : "earth"));
 
   function startGame() {
     ensureAudio();
@@ -644,6 +735,7 @@
     // 時間
     timeLeft -= dt;
     if (timeLeft <= 0) { timeLeft = 0; endGame(); }
+    if (state === "playing" && score >= CLEAR_SCORE) showClear();
     scoreEl.textContent = score;
     timeEl.textContent = Math.ceil(timeLeft);
     altEl.textContent = alt < 0.9 ? "着陸中" : "ALT " + Math.round(alt * 10) / 10;
