@@ -794,7 +794,7 @@
       const k = Math.min(1, warpT / WARP_PULL_TIME);
       const e = k * k * (3 - 2 * k);
       const dir = ufo.position.clone().normalize();
-      camera.position.copy(ufo.position).addScaledVector(dir, 6 + 70 * e).addScaledVector(camHeading, -(14 + 130 * e));
+      camera.position.copy(ufo.position).addScaledVector(dir, 6 + 40 * e).addScaledVector(camHeading, -(14 + 70 * e));
       camera.lookAt(ufo.position);
       if (k >= 1) {
         warpPhase = "rise"; warpT = 0;
