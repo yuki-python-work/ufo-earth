@@ -154,6 +154,19 @@
     side: THREE.BackSide, depthWrite: false
   });
 
+  // 木星の空: 薄いオレンジ色のガスの大気
+  const jupiterSkyMat = new THREE.ShaderMaterial({
+    vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `varying vec3 vP;
+      void main(){
+        float h = normalize(vP).y;
+        vec3 horizon = vec3(0.95, 0.8, 0.6);
+        vec3 zenith = vec3(0.7, 0.5, 0.35);
+        gl_FragColor = vec4(mix(horizon, zenith, smoothstep(-0.05, 0.6, h)), 1.0);
+      }`,
+    side: THREE.BackSide, depthWrite: false
+  });
+
   // ---------- 地形ノイズ ----------
   function noise3(x, y, z) {
     return Math.sin(x * 1.7 + Math.sin(y * 2.1 + z * 1.3) * 1.6) * 0.5
@@ -220,12 +233,29 @@
     return [g * 1.05, g * 0.98, g * 0.9];
   }
 
+  // 木星の地形: ガスの雲の表面。ほぼ平らで、わずかなうねりだけ
+  function jupiterH(x, y, z) {
+    return 0.02 + 0.02 * noise3(x * 3, y * 3, z * 3);
+  }
+  // 木星の色: クリーム色と茶色の縞模様、大赤斑
+  function jupiterColor(h, x, y, z) {
+    const band = Math.sin(y * 16 + noise3(x * 3, y * 3, z * 3) * 1.5);  // 縞(緯度に沿って)
+    const t = 0.5 + 0.5 * band;
+    let r = 0.92 * (1 - t) + 0.68 * t, g = 0.82 * (1 - t) + 0.45 * t, b = 0.62 * (1 - t) + 0.3 * t;
+    // 大赤斑(楕円の代わりに、中心からの距離で描く)
+    const dx = x - 0.604, dy = y + 0.372, dz = z - 0.705;
+    if (Math.hypot(dx, dy, dz) < 0.18) { r = 0.78; g = 0.32; b = 0.22; }
+    const v = 0.95 + 0.05 * noise3(x * 25, y * 25, z * 25);
+    return [r * v, g * v, b * v];
+  }
+
   // 単位方向ベクトルの地表の高さ(海は負)、UFOの単位に換算する前の値
   function terrainH(x, y, z) {
     if (stage === "moon") return moonH(x, y, z);
     if (stage === "mars") return marsH(x, y, z);
     if (stage === "venus") return venusH(x, y, z);
     if (stage === "mercury") return mercuryH(x, y, z);
+    if (stage === "jupiter") return jupiterH(x, y, z);
     const n = noise3(x * 2.2, y * 2.2, z * 2.2);
     // 陸の高さ(起伏あり)
     const base = (n - 0.05) * 0.8;
@@ -651,9 +681,9 @@
   const clearEl = document.getElementById("clear");
   const clearScoreEl = document.getElementById("clearScore");
   const nextBtn = document.getElementById("nextBtn");
-  // ステージの順番: 地球 → 月 → 火星 → 金星 → 水星 → 地球
-  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "mercury", mercury: "earth" };
-  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "水星へ", mercury: "地球へ戻る" };
+  // ステージの順番: 地球 → 月 → 火星 → 金星 → 水星 → 木星 → 地球
+  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "mercury", mercury: "jupiter", jupiter: "earth" };
+  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "水星へ", mercury: "木星へ", jupiter: "地球へ戻る" };
   // 今の星の地表は1つだけ持つ。星を移るときは、前の星の地表を破棄してメモリを解放する
   let drySurface = null, drySurfaceKind = null;
   const dryMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 });
@@ -666,8 +696,8 @@
 
   function buildDry(kind) {
     discardDry();
-    const heightFn = { moon: moonH, mars: marsH, venus: venusH, mercury: mercuryH }[kind];
-    const colorFn = { moon: moonColor, mars: marsColor, venus: venusColor, mercury: mercuryColor }[kind];
+    const heightFn = { moon: moonH, mars: marsH, venus: venusH, mercury: mercuryH, jupiter: jupiterH }[kind];
+    const colorFn = { moon: moonColor, mars: marsColor, venus: venusColor, mercury: mercuryColor, jupiter: jupiterColor }[kind];
     const geo = new THREE.SphereGeometry(1, 1300, 1300);
     const p = geo.attributes.position;
     const col = new Float32Array(p.count * 3);
@@ -693,7 +723,7 @@
     if (name === "earth") discardDry();
     else if (drySurfaceKind !== name) buildDry(name);
     earthGroup.visible = name === "earth";
-    skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat, mercury: spaceMat }[name];
+    skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat, mercury: spaceMat, jupiter: jupiterSkyMat }[name];
     startGame();
   }
 
