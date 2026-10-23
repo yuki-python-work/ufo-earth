@@ -654,9 +654,18 @@
   // ステージの順番: 地球 → 月 → 火星 → 金星 → 水星 → 地球
   const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "mercury", mercury: "earth" };
   const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "水星へ", mercury: "地球へ戻る" };
-  const drySurfaces = {}; // 月・火星の地表(初めて行くときに作る)
+  // 今の星の地表は1つだけ持つ。星を移るときは、前の星の地表を破棄してメモリを解放する
+  let drySurface = null, drySurfaceKind = null;
+  const dryMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 });
+  function discardDry() {
+    if (!drySurface) return;
+    scene.remove(drySurface);
+    drySurface.geometry.dispose();
+    drySurface = null; drySurfaceKind = null;
+  }
 
   function buildDry(kind) {
+    discardDry();
     const heightFn = { moon: moonH, mars: marsH, venus: venusH, mercury: mercuryH }[kind];
     const colorFn = { moon: moonColor, mars: marsColor, venus: venusColor, mercury: mercuryColor }[kind];
     const geo = new THREE.SphereGeometry(1, 1300, 1300);
@@ -673,17 +682,17 @@
     p.needsUpdate = true;
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 }));
-    scene.add(mesh);
-    drySurfaces[kind] = mesh;
+    drySurface = new THREE.Mesh(geo, dryMaterial);
+    drySurfaceKind = kind;
+    scene.add(drySurface);
   }
 
   function goToStage(name) {
     clearEl.classList.add("hidden");
     stage = name;
-    if (name !== "earth" && !drySurfaces[name]) buildDry(name);
+    if (name === "earth") discardDry();
+    else if (drySurfaceKind !== name) buildDry(name);
     earthGroup.visible = name === "earth";
-    for (const k in drySurfaces) drySurfaces[k].visible = (k === name);
     skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat, mercury: spaceMat }[name];
     startGame();
   }
