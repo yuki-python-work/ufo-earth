@@ -807,7 +807,7 @@
       const k = Math.min(1, warpT / WARP_RISE_TIME);
       const pr = ufo.position.length();
       const dir = ufo.position.clone().divideScalar(pr);
-      const speed = 300 + 2500 * k * k;
+      const speed = 2800;                           // 静止状態からいきなり高速で上昇
       ufo.position.copy(dir).multiplyScalar(pr + speed * dt);
       ufo.updateMatrixWorld(true);
       // 軌跡: 古い点を一つずらして、今の位置を先頭(新しい側)に追加
