@@ -207,11 +207,25 @@
     return [Math.min(1, g * 1.15), g * 0.95, g * 0.6];
   }
 
+  // 水星の地形: 大小のクレーターだらけの、起伏の強い地形
+  function mercuryH(x, y, z) {
+    const big = moonH(x * 1.5 + 4, y * 1.5 - 2, z * 1.5 + 9);
+    const small = noise3(x * 40 + 1, y * 40 - 3, z * 40 + 5) * 0.05;
+    return big + small;
+  }
+  // 水星の色: 灰色がかった茶色の岩肌
+  function mercuryColor(h, x, y, z) {
+    const v = 0.86 + 0.14 * noise3(x * 25, y * 25, z * 25);
+    const g = clamp01(0.4 + 0.3 * h) * v;
+    return [g * 1.05, g * 0.98, g * 0.9];
+  }
+
   // 単位方向ベクトルの地表の高さ(海は負)、UFOの単位に換算する前の値
   function terrainH(x, y, z) {
     if (stage === "moon") return moonH(x, y, z);
     if (stage === "mars") return marsH(x, y, z);
     if (stage === "venus") return venusH(x, y, z);
+    if (stage === "mercury") return mercuryH(x, y, z);
     const n = noise3(x * 2.2, y * 2.2, z * 2.2);
     // 陸の高さ(起伏あり)
     const base = (n - 0.05) * 0.8;
@@ -637,14 +651,14 @@
   const clearEl = document.getElementById("clear");
   const clearScoreEl = document.getElementById("clearScore");
   const nextBtn = document.getElementById("nextBtn");
-  // ステージの順番: 地球 → 月 → 火星 → 金星 → 地球
-  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "earth" };
-  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "地球へ戻る" };
+  // ステージの順番: 地球 → 月 → 火星 → 金星 → 水星 → 地球
+  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "mercury", mercury: "earth" };
+  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "水星へ", mercury: "地球へ戻る" };
   const drySurfaces = {}; // 月・火星の地表(初めて行くときに作る)
 
   function buildDry(kind) {
-    const heightFn = kind === "moon" ? moonH : (kind === "mars" ? marsH : venusH);
-    const colorFn = kind === "moon" ? moonColor : (kind === "mars" ? marsColor : venusColor);
+    const heightFn = { moon: moonH, mars: marsH, venus: venusH, mercury: mercuryH }[kind];
+    const colorFn = { moon: moonColor, mars: marsColor, venus: venusColor, mercury: mercuryColor }[kind];
     const geo = new THREE.SphereGeometry(1, 1300, 1300);
     const p = geo.attributes.position;
     const col = new Float32Array(p.count * 3);
@@ -670,7 +684,7 @@
     if (name !== "earth" && !drySurfaces[name]) buildDry(name);
     earthGroup.visible = name === "earth";
     for (const k in drySurfaces) drySurfaces[k].visible = (k === name);
-    skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat }[name];
+    skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat, mercury: spaceMat }[name];
     startGame();
   }
 
