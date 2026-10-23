@@ -123,6 +123,18 @@
     side: THREE.BackSide, depthWrite: false
   });
 
+  const marsSkyMat = new THREE.ShaderMaterial({
+    vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `varying vec3 vP;
+      void main(){
+        float h = normalize(vP).y;
+        vec3 horizon = vec3(0.95, 0.74, 0.55);
+        vec3 zenith = vec3(0.62, 0.42, 0.34);
+        gl_FragColor = vec4(mix(horizon, zenith, smoothstep(-0.05, 0.6, h)), 1.0);
+      }`,
+    side: THREE.BackSide, depthWrite: false
+  });
+
   // ---------- 地形ノイズ ----------
   function noise3(x, y, z) {
     return Math.sin(x * 1.7 + Math.sin(y * 2.1 + z * 1.3) * 1.6) * 0.5
@@ -154,9 +166,21 @@
     return [g, g, g * 0.98];
   }
 
+  // 火星の地形: 月より起伏が大きく、丘と谷が目立つ
+  function marsH(x, y, z) {
+    return moonH(y * 1.2 + 11, z * 1.2 - 5, x * 1.2 + 2) * 1.2;
+  }
+  // 火星の色: 赤茶色の砂と岩
+  function marsColor(h, x, y, z) {
+    const v = 0.85 + 0.15 * noise3(x * 25, y * 25, z * 25);
+    const g = clamp01(0.35 + 0.35 * h) * v;
+    return [Math.min(1, g * 1.35), g * 0.62, g * 0.42];
+  }
+
   // 単位方向ベクトルの地表の高さ(海は負)、UFOの単位に換算する前の値
   function terrainH(x, y, z) {
     if (stage === "moon") return moonH(x, y, z);
+    if (stage === "mars") return marsH(x, y, z);
     const n = noise3(x * 2.2, y * 2.2, z * 2.2);
     // 陸の高さ(起伏あり)
     const base = (n - 0.05) * 0.8;
@@ -534,7 +558,7 @@
   function updateAmbience(dt, up, alt) {
     if (!amb || !audioCtx || audioCtx.state !== "running") return;
     const now = audioCtx.currentTime;
-    if (stage === "moon") {
+    if (stage !== "earth") {
       amb.seaG.gain.setTargetAtTime(0, now, 0.4);
       amb.windG.gain.setTargetAtTime(0, now, 0.4);
       return;
@@ -582,50 +606,50 @@
   const clearEl = document.getElementById("clear");
   const clearScoreEl = document.getElementById("clearScore");
   const nextBtn = document.getElementById("nextBtn");
-  let moonMesh = null;
+  // ステージの順番: 地球 → 月 → 火星 → 地球
+  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "earth" };
+  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "地球へ戻る" };
+  const drySurfaces = {}; // 月・火星の地表(初めて行くときに作る)
 
-  function buildMoon() {
+  function buildDry(kind) {
+    const heightFn = kind === "moon" ? moonH : marsH;
+    const colorFn = kind === "moon" ? moonColor : marsColor;
     const geo = new THREE.SphereGeometry(1, 1300, 1300);
     const p = geo.attributes.position;
     const col = new Float32Array(p.count * 3);
     for (let i = 0; i < p.count; i++) {
       let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
       const l = Math.hypot(x, y, z); x /= l; y /= l; z /= l;
-      const h = moonH(x, y, z);
-      p.setXYZ(i, x * (PLANET_R + h * HS), y * (PLANET_R + h * HS), z * (PLANET_R + h * HS));
-      col.set(moonColor(h, x, y, z), i * 3);
+      const h = heightFn(x, y, z);
+      const R = PLANET_R + h * HS;
+      p.setXYZ(i, x * R, y * R, z * R);
+      col.set(colorFn(h, x, y, z), i * 3);
     }
     p.needsUpdate = true;
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
-    moonMesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 }));
-    scene.add(moonMesh);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 }));
+    scene.add(mesh);
+    drySurfaces[kind] = mesh;
   }
 
   function goToStage(name) {
     clearEl.classList.add("hidden");
-    if (name === "moon") {
-      if (!moonMesh) buildMoon();
-      moonMesh.visible = true;
-      earthGroup.visible = false;
-      skyMesh.material = spaceMat;
-      stage = "moon";
-    } else {
-      if (moonMesh) moonMesh.visible = false;
-      earthGroup.visible = true;
-      skyMesh.material = earthSkyMat;
-      stage = "earth";
-    }
+    stage = name;
+    if (name !== "earth" && !drySurfaces[name]) buildDry(name);
+    earthGroup.visible = name === "earth";
+    for (const k in drySurfaces) drySurfaces[k].visible = (k === name);
+    skyMesh.material = name === "earth" ? earthSkyMat : (name === "moon" ? spaceMat : marsSkyMat);
     startGame();
   }
 
   function showClear() {
     state = "clear";
     clearScoreEl.textContent = score;
-    nextBtn.textContent = stage === "earth" ? "月へ" : "地球へ戻る";
+    nextBtn.textContent = NEXT_LABEL[stage];
     clearEl.classList.remove("hidden");
   }
-  nextBtn.addEventListener("click", () => goToStage(stage === "earth" ? "moon" : "earth"));
+  nextBtn.addEventListener("click", () => goToStage(NEXT_STAGE[stage]));
 
   function startGame() {
     ensureAudio();
