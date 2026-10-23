@@ -712,7 +712,7 @@
 
   // 軌跡の帯を作り直す(カメラの方を向き、後ろほど細くなる)
   const trailSide = new THREE.Vector3(), trailTan = new THREE.Vector3(), trailToCam = new THREE.Vector3();
-  function updateTrailMesh() {
+  function updateTrailMesh(scale = 1) {
     for (let i = 0; i < TRAIL_N; i++) {
       const p = trailPts[i];
       const prev = trailPts[Math.max(0, i - 1)], next = trailPts[Math.min(TRAIL_N - 1, i + 1)];
@@ -721,7 +721,7 @@
       trailSide.crossVectors(trailTan, trailToCam);
       if (trailSide.lengthSq() < 1e-9) trailSide.set(1, 0, 0);
       trailSide.normalize();
-      const w = 0.9 * (0.15 + 0.85 * (i / (TRAIL_N - 1)));   // 後ろ(古い側)ほど細い
+      const w = 0.35 * scale * (0.15 + 0.85 * (i / (TRAIL_N - 1)));   // 細く。後ろ(古い側)ほど細い
       const a = (p.x + trailSide.x * w), b = (p.y + trailSide.y * w), c = (p.z + trailSide.z * w);
       trailVerts.set([a, b, c], i * 6);
       trailVerts.set([2 * p.x - a, 2 * p.y - b, 2 * p.z - c], i * 6 + 3);
@@ -762,7 +762,12 @@
       trailPts[TRAIL_N - 1].copy(ufo.position);
       updateTrailMesh();
       camera.lookAt(warpLook);
-      if (k >= 1) { warpPhase = "load"; startLoad(); }
+      if (k >= 1) { warpPhase = "fade"; warpT = 0; }
+    } else if (warpPhase === "fade") {
+      // UFOが飛び去ってから0.5秒かけて、軌跡が細くなって消える
+      const f = Math.min(1, warpT / 0.5);
+      updateTrailMesh(1 - f);
+      if (f >= 1) { warpPhase = "load"; startLoad(); }
     }
   }
   // 次の星の読み込み中は「ワープ中…」を表示する
