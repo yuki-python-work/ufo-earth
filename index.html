@@ -770,7 +770,7 @@
   const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "mercury", mercury: "jupiter", jupiter: "saturn", saturn: "uranus", uranus: "neptune", neptune: "sun", sun: "earth" };
   const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "水星へ", mercury: "木星へ", jupiter: "土星へ", saturn: "天王星へ", uranus: "海王星へ", neptune: "太陽へ", sun: "地球へ戻る" };
   // 今の星の地表は1つだけ持つ。星を移るときは、前の星の地表を破棄してメモリを解放する
-  // 太陽の演出: コロナ(表面の外側に広がる光の膜)とプロミネンス(所々に立ち上がる炎のアーチ)
+  // 太陽の演出: コロナ(表面の外側に広がる光の膜)
   const sunFx = new THREE.Group();
   sunFx.visible = false;
   scene.add(sunFx);
@@ -792,26 +792,6 @@
   });
   const corona = new THREE.Mesh(new THREE.SphereGeometry(PLANET_R * 1.22, 64, 32), coronaMat);
   sunFx.add(corona);
-  const prominenceMat = new THREE.MeshBasicMaterial({
-    color: 0xff9a3a, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending
-  });
-  // 黄金角で球面上に散らして、プロミネンスを10本つくる(毎回同じ配置)
-  for (let i = 0; i < 10; i++) {
-    const cy = 1 - 2 * ((i + 0.5) / 10);
-    const ph = Math.acos(cy), th = i * 2.399963;
-    const dir = new THREE.Vector3(Math.sin(ph) * Math.cos(th), cy, Math.sin(ph) * Math.sin(th));
-    const tang = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0.3, 1, 0.1)).normalize();
-    const size = 0.8 + 0.4 * ((i * 37) % 10) / 10;           // アーチの大きさを少しずつ変える
-    const base = dir.clone().multiplyScalar(PLANET_R * 0.99);
-    const pts = [
-      base.clone(),
-      dir.clone().multiplyScalar(PLANET_R + 22 * size).addScaledVector(tang, 14 * size),
-      base.clone().addScaledVector(tang, 34 * size)
-    ];
-    const curve = new THREE.CatmullRomCurve3(pts);
-    sunFx.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 2.2 * size, 6, false), prominenceMat));
-  }
-
   let drySurface = null, drySurfaceKind = null;
   const dryMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 });
   function discardDry() {
