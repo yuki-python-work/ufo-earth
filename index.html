@@ -323,13 +323,25 @@
     return [r * v, g * v, b * v];
   }
 
+  // 太陽の色: 明るい黄色〜オレンジの、細かく揺らぐ表面(黒点も少しある)
+  function sunColor(h, x, y, z) {
+    const gran = noise3(x * 6, y * 6, z * 6);           // 大きめの対流模様
+    const fine = noise3(x * 30, y * 30, z * 30);        // 細かい粒状の模様
+    const t = Math.max(0, Math.min(1, 0.5 + 0.5 * gran + 0.2 * fine));
+    const spot = noise3(x * 3 + 7, y * 3, z * 3) > 0.45 ? 0.6 : 1.0;   // 黒点は少し暗く
+    const r = (1.0 * (0.85 + 0.15 * t)) * spot;
+    const g = (0.55 + 0.4 * t) * spot;
+    const b = (0.1 + 0.15 * t) * spot;
+    return [r, g, b];
+  }
+
   // 単位方向ベクトルの地表の高さ(海は負)、UFOの単位に換算する前の値
   function terrainH(x, y, z) {
     if (stage === "moon") return moonH(x, y, z);
     if (stage === "mars") return marsH(x, y, z);
     if (stage === "venus") return venusH(x, y, z);
     if (stage === "mercury") return mercuryH(x, y, z);
-    if (stage === "jupiter" || stage === "saturn" || stage === "uranus" || stage === "neptune") return jupiterH(x, y, z);
+    if (stage === "jupiter" || stage === "saturn" || stage === "uranus" || stage === "neptune" || stage === "sun") return jupiterH(x, y, z);
     const n = noise3(x * 2.2, y * 2.2, z * 2.2);
     // 陸の高さ(起伏あり)
     const base = (n - 0.05) * 0.8;
@@ -755,9 +767,9 @@
   const clearEl = document.getElementById("clear");
   const clearScoreEl = document.getElementById("clearScore");
   const nextBtn = document.getElementById("nextBtn");
-  // ステージの順番: 地球 → 月 → 火星 → 金星 → 水星 → 木星 → 土星 → 天王星 → 海王星 → 地球
-  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "mercury", mercury: "jupiter", jupiter: "saturn", saturn: "uranus", uranus: "neptune", neptune: "earth" };
-  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "水星へ", mercury: "木星へ", jupiter: "土星へ", saturn: "天王星へ", uranus: "海王星へ", neptune: "地球へ戻る" };
+  // ステージの順番: 地球 → 月 → 火星 → 金星 → 水星 → 木星 → 土星 → 天王星 → 海王星 → 太陽 → 地球
+  const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "mercury", mercury: "jupiter", jupiter: "saturn", saturn: "uranus", uranus: "neptune", neptune: "sun", sun: "earth" };
+  const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "水星へ", mercury: "木星へ", jupiter: "土星へ", saturn: "天王星へ", uranus: "海王星へ", neptune: "太陽へ", sun: "地球へ戻る" };
   // 今の星の地表は1つだけ持つ。星を移るときは、前の星の地表を破棄してメモリを解放する
   let drySurface = null, drySurfaceKind = null;
   const dryMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 });
@@ -770,8 +782,8 @@
 
   function buildDry(kind) {
     discardDry();
-    const heightFn = { moon: moonH, mars: marsH, venus: venusH, mercury: mercuryH, jupiter: jupiterH, saturn: jupiterH, uranus: jupiterH, neptune: jupiterH }[kind];
-    const colorFn = { moon: moonColor, mars: marsColor, venus: venusColor, mercury: mercuryColor, jupiter: jupiterColor, saturn: saturnColor, uranus: uranusColor, neptune: neptuneColor }[kind];
+    const heightFn = { moon: moonH, mars: marsH, venus: venusH, mercury: mercuryH, jupiter: jupiterH, saturn: jupiterH, uranus: jupiterH, neptune: jupiterH, sun: jupiterH }[kind];
+    const colorFn = { moon: moonColor, mars: marsColor, venus: venusColor, mercury: mercuryColor, jupiter: jupiterColor, saturn: saturnColor, uranus: uranusColor, neptune: neptuneColor, sun: sunColor }[kind];
     const geo = new THREE.SphereGeometry(1, 1300, 1300);
     const p = geo.attributes.position;
     const col = new Float32Array(p.count * 3);
@@ -797,7 +809,7 @@
     if (name === "earth") discardDry();
     else if (drySurfaceKind !== name) buildDry(name);
     earthGroup.visible = name === "earth";
-    skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat, mercury: spaceMat, jupiter: jupiterSkyMat, saturn: saturnSkyMat, uranus: uranusSkyMat, neptune: neptuneSkyMat }[name];
+    skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat, mercury: spaceMat, jupiter: jupiterSkyMat, saturn: saturnSkyMat, uranus: uranusSkyMat, neptune: neptuneSkyMat, sun: spaceMat }[name];
     saturnRing.visible = name === "saturn";
     startGame();
   }
