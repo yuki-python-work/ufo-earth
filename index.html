@@ -323,15 +323,14 @@
     return [r * v, g * v, b * v];
   }
 
-  // 太陽の色: 明るい黄色〜オレンジの、細かく揺らぐ表面(黒点も少しある)
+  // 太陽の色: 明るい黄色〜オレンジの、細かく揺らぐ表面
   function sunColor(h, x, y, z) {
     const gran = noise3(x * 6, y * 6, z * 6);           // 大きめの対流模様
     const fine = noise3(x * 30, y * 30, z * 30);        // 細かい粒状の模様
     const t = Math.max(0, Math.min(1, 0.5 + 0.5 * gran + 0.2 * fine));
-    const spot = noise3(x * 3 + 7, y * 3, z * 3) > 0.45 ? 0.6 : 1.0;   // 黒点は少し暗く
-    const r = (1.0 * (0.85 + 0.15 * t)) * spot;
-    const g = (0.55 + 0.4 * t) * spot;
-    const b = (0.1 + 0.15 * t) * spot;
+    const r = 1.0 * (0.85 + 0.15 * t);
+    const g = 0.55 + 0.4 * t;
+    const b = 0.1 + 0.15 * t;
     return [r, g, b];
   }
 
@@ -771,6 +770,48 @@
   const NEXT_STAGE = { earth: "moon", moon: "mars", mars: "venus", venus: "mercury", mercury: "jupiter", jupiter: "saturn", saturn: "uranus", uranus: "neptune", neptune: "sun", sun: "earth" };
   const NEXT_LABEL = { earth: "月へ", moon: "火星へ", mars: "金星へ", venus: "水星へ", mercury: "木星へ", jupiter: "土星へ", saturn: "天王星へ", uranus: "海王星へ", neptune: "太陽へ", sun: "地球へ戻る" };
   // 今の星の地表は1つだけ持つ。星を移るときは、前の星の地表を破棄してメモリを解放する
+  // 太陽の演出: コロナ(表面の外側に広がる光の膜)とプロミネンス(所々に立ち上がる炎のアーチ)
+  const sunFx = new THREE.Group();
+  sunFx.visible = false;
+  scene.add(sunFx);
+  const coronaMat = new THREE.ShaderMaterial({
+    uniforms: {},
+    vertexShader: `varying vec3 vN; varying vec3 vV;
+      void main(){
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `varying vec3 vN; varying vec3 vV;
+      void main(){
+        float d = abs(dot(normalize(vN), normalize(vV)));
+        float glow = pow(1.0 - d, 2.2) * 0.85;             // 縁ほど明るい
+        gl_FragColor = vec4(vec3(1.0, 0.7, 0.3) * glow, glow);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  const corona = new THREE.Mesh(new THREE.SphereGeometry(PLANET_R * 1.22, 64, 32), coronaMat);
+  sunFx.add(corona);
+  const prominenceMat = new THREE.MeshBasicMaterial({
+    color: 0xff9a3a, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  // 黄金角で球面上に散らして、プロミネンスを10本つくる(毎回同じ配置)
+  for (let i = 0; i < 10; i++) {
+    const cy = 1 - 2 * ((i + 0.5) / 10);
+    const ph = Math.acos(cy), th = i * 2.399963;
+    const dir = new THREE.Vector3(Math.sin(ph) * Math.cos(th), cy, Math.sin(ph) * Math.sin(th));
+    const tang = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0.3, 1, 0.1)).normalize();
+    const size = 0.8 + 0.4 * ((i * 37) % 10) / 10;           // アーチの大きさを少しずつ変える
+    const base = dir.clone().multiplyScalar(PLANET_R * 0.99);
+    const pts = [
+      base.clone(),
+      dir.clone().multiplyScalar(PLANET_R + 22 * size).addScaledVector(tang, 14 * size),
+      base.clone().addScaledVector(tang, 34 * size)
+    ];
+    const curve = new THREE.CatmullRomCurve3(pts);
+    sunFx.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 2.2 * size, 6, false), prominenceMat));
+  }
+
   let drySurface = null, drySurfaceKind = null;
   const dryMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, map: detailTex, shininess: 2, specular: 0x111111 });
   function discardDry() {
@@ -811,6 +852,7 @@
     earthGroup.visible = name === "earth";
     skyMesh.material = { earth: earthSkyMat, moon: spaceMat, mars: marsSkyMat, venus: venusSkyMat, mercury: spaceMat, jupiter: jupiterSkyMat, saturn: saturnSkyMat, uranus: uranusSkyMat, neptune: neptuneSkyMat, sun: spaceMat }[name];
     saturnRing.visible = name === "saturn";
+    sunFx.visible = name === "sun";
     startGame();
   }
 
