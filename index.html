@@ -1014,6 +1014,12 @@
     const moveDir = new THREE.Vector3().addScaledVector(fwd3, iy).addScaledVector(right, ix);
     const mag = Math.min(1, moveDir.length());
     const moving = mag > 0.05;
+    // 移動の向きが視点の正面からずれている間は、視点が徐々に移動の向きへ追従する(ゆっくり回る)
+    if (moving && yawDiff !== 0) {
+      const follow = -yawDiff * Math.min(1, dt * 1.5);
+      camHeading.applyAxisAngle(up, follow);
+      view.applyAxisAngle(up, follow);
+    }
     if (moving) moveDir.normalize();
     // 進行方向を、地表に沿う成分(水平)と、上下の成分(高度)に分ける
     const radialMove = moving ? moveDir.dot(up) : 0;
