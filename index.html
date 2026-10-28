@@ -679,20 +679,25 @@
       g.gain.value = 0;
       src.connect(f).connect(g).connect(ctx.destination);
       src.start();
-      return g;
+      return { g, f };
     };
-    const seaG = noiseLoop("lowpass", 700, 0.7);   // 波の音
-    const windG = noiseLoop("bandpass", 1400, 0.5); // 風の音
+    const sea = noiseLoop("lowpass", 700, 0.7);     // 波の音
+    const wind = noiseLoop("bandpass", 1400, 0.5); // 風の音
 
-    // 波が寄せては返すゆっくりした揺れ
+    // 波が寄せては返すゆっくりした揺れ。音量の設定とは別の増幅段で掛けるので、
+    // 音量を0にすると確実に無音になる
+    const seaMod = ctx.createGain();
+    seaMod.gain.value = 1;
+    sea.g.disconnect();
+    sea.g.connect(seaMod).connect(ctx.destination);
     const lfo = ctx.createOscillator();
     lfo.frequency.value = 0.12;
     const lfoGain = ctx.createGain();
     lfoGain.gain.value = 0.15;
-    lfo.connect(lfoGain).connect(seaG.gain);
+    lfo.connect(lfoGain).connect(seaMod.gain);
     lfo.start();
 
-    amb = { seaG, windG, birdTimer: 2 };
+    amb = { seaG: sea.g, windG: wind.g, windF: wind.f, birdTimer: 2 };
   }
 
   function chirp() {
@@ -715,14 +720,28 @@
   }
 
   // 海の上では波、山の近くでは強い風、陸地では鳥の声
+  // 大気のある惑星の風: 音量と音の高さ(低いほど重い唸り)
+  const ATMOSPHERE_WIND = {
+    mars:    { level: 0.05, freq: 900 },    // 薄い大気: 弱い風
+    venus:   { level: 0.14, freq: 1400 },   // 厚い大気: 強い風
+    jupiter: { level: 0.10, freq: 300 },    // ガス惑星: 低い唸り
+    saturn:  { level: 0.10, freq: 300 },
+    uranus:  { level: 0.10, freq: 300 },
+    neptune: { level: 0.10, freq: 300 }
+    // 月・水星・太陽は大気がないので無音
+  };
   function updateAmbience(dt, up, alt) {
     if (!amb || !audioCtx || audioCtx.state !== "running") return;
     const now = audioCtx.currentTime;
     if (stage !== "earth") {
+      // 地球以外: 海と鳥の音は止める。大気がある惑星だけ風を鳴らす
+      const atmo = ATMOSPHERE_WIND[stage];
       amb.seaG.gain.setTargetAtTime(0, now, 0.4);
-      amb.windG.gain.setTargetAtTime(0, now, 0.4);
+      amb.windG.gain.setTargetAtTime(atmo ? atmo.level : 0, now, 0.6);
+      if (atmo) amb.windF.frequency.setTargetAtTime(atmo.freq, now, 0.6);
       return;
     }
+    amb.windF.frequency.setTargetAtTime(1400, now, 0.6);
     const h = terrainH(up.x, up.y, up.z);
     const overSea = h < 0;
     const near = clamp(1 - alt / 40, 0, 1);
