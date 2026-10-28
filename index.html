@@ -1016,7 +1016,7 @@
     const moving = mag > 0.05;
     // 移動の向きが視点の正面からずれている間は、視点が徐々に移動の向きへ追従する(ゆっくり回る)
     if (moving && yawDiff !== 0) {
-      const follow = -yawDiff * Math.min(1, dt * 1.5);
+      const follow = -yawDiff * Math.min(1, dt * 4);
       camHeading.applyAxisAngle(up, follow);
       view.applyAxisAngle(up, follow);
     }
