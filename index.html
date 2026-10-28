@@ -1032,14 +1032,14 @@
     heading.normalize();
 
     // 水平移動(球面に沿って動き、高さは保つ)
-    let hs = 100 * mag;
+    let hs = 110 * mag;
     if (alt < 2.5) hs *= 0.5; // 地表近くはゆっくり(着陸しやすい)
     if (moving) {
       ufo.position.copy(ufo.position.clone().addScaledVector(tangentMove, hs * dt).normalize().multiplyScalar(pr));
     }
 
     // 上昇・降下(右スティック + 上下の視点に合わせた前進の高度成分)
-    const vTarget = vIn * 100 + radialMove * hs;
+    const vTarget = vIn * 110 + radialMove * hs;
     vz += (vTarget - vz) * Math.min(1, dt * 4); // 離すと高度を維持
     const p2 = ufo.position.length();
     const u2 = ufo.position.clone().divideScalar(p2);
