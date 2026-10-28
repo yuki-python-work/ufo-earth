@@ -551,7 +551,7 @@
     const up = routeP.clone().normalize();
     routeDir.addScaledVector(up, -routeDir.dot(up));
     if (routeDir.lengthSq() < 1e-6) routeDir.set(1, 0, 0).addScaledVector(up, -up.x);
-    routeDir.normalize().applyAxisAngle(up, (Math.random() - 0.5) * 0.6); // ゆるやかに曲がる
+    routeDir.normalize().applyAxisAngle(up, (Math.random() - 0.5) * 0.2); // ゆるやかに曲がる(1区間あたり±0.05rad以内)
     const next = routeP.clone().addScaledVector(routeDir, ROUTE_STEP).normalize();
     const alt = 8 + Math.random() * 6;
     routeP.copy(next).multiplyScalar(surfaceR(next.x, next.y, next.z) + alt);
