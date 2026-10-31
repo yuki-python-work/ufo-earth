@@ -27,6 +27,9 @@
     .overlay h1{font-size:28px;margin:0 0 4px;}
     .overlay p{margin:4px 0;line-height:1.5;font-size:14px;}
     .overlay button{font-size:17px;padding:9px 30px;margin-top:10px;}
+    .speedRow{display:flex;gap:10px;justify-content:center;margin-top:6px;}
+    .speedRow button{font-size:15px;padding:7px 18px;margin-top:4px;border-color:#9ab;color:#cde;}
+    .speedRow button.on{background:#fff;color:#000;border-color:#fff;}
   }
   .overlay h1{font-size:44px;letter-spacing:5px;margin:0 0 10px;color:#fff;text-shadow:0 2px 14px #0a3c78;}
   .overlay p{margin:8px 0;line-height:1.7;max-width:420px;text-shadow:0 1px 6px #0a3c78;}
@@ -67,6 +70,12 @@
      右のスティック: 上下で高度を調整(離すと高度を維持)<br>
      PC: WASD / 矢印で移動、マウスドラッグで視点、Space / Shiftで上昇・降下</p>
   <p class="small">ホーム画面に追加すると全画面で遊べます</p>
+  <p class="small" style="margin-bottom:0">UFOの速さ</p>
+  <div class="speedRow">
+    <button class="spd" data-speed="70">ゆっくり</button>
+    <button class="spd" data-speed="85">ふつう</button>
+    <button class="spd" data-speed="110">はやい</button>
+  </div>
   <button id="startBtn">スタート</button>
 </div>
 
@@ -989,6 +998,21 @@
     finalEl.textContent = score;
     overEl.classList.remove("hidden");
   }
+  // UFOの速さ(水平・上下の両方)。スタート画面で選ぶ。端末に保存し、保存できなくても動く
+  let ufoSpeed = 110;
+  try {
+    const saved = Number(localStorage.getItem("ufoSpeed"));
+    if ([70, 85, 110].includes(saved)) ufoSpeed = saved;
+  } catch (e) {}
+  function refreshSpeedButtons() {
+    document.querySelectorAll(".spd").forEach(b => b.classList.toggle("on", Number(b.dataset.speed) === ufoSpeed));
+  }
+  document.querySelectorAll(".spd").forEach(b => b.addEventListener("click", () => {
+    ufoSpeed = Number(b.dataset.speed);
+    try { localStorage.setItem("ufoSpeed", String(ufoSpeed)); } catch (e) {}
+    refreshSpeedButtons();
+  }));
+  refreshSpeedButtons();
   document.getElementById("startBtn").addEventListener("click", startGame);
   document.getElementById("restartBtn").addEventListener("click", startGame);
   addEventListener("keydown", e => { if (e.code === "Enter" && state !== "playing") startGame(); });
@@ -1051,14 +1075,14 @@
     heading.normalize();
 
     // 水平移動(球面に沿って動き、高さは保つ)
-    let hs = 110 * mag;
+    let hs = ufoSpeed * mag;
     if (alt < 2.5) hs *= 0.5; // 地表近くはゆっくり(着陸しやすい)
     if (moving) {
       ufo.position.copy(ufo.position.clone().addScaledVector(tangentMove, hs * dt).normalize().multiplyScalar(pr));
     }
 
     // 上昇・降下(右スティック + 上下の視点に合わせた前進の高度成分)
-    const vTarget = vIn * 110 + radialMove * hs;
+    const vTarget = vIn * ufoSpeed + radialMove * hs;
     vz += (vTarget - vz) * Math.min(1, dt * 4); // 離すと高度を維持
     const p2 = ufo.position.length();
     const u2 = ufo.position.clone().divideScalar(p2);
