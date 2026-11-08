@@ -976,7 +976,7 @@
       setTimeout(() => warpEl.classList.add("hidden"), 900);
     }, 150);
   }
-  nextBtn.addEventListener("click", () => startWarp(NEXT_STAGE[stage]));
+  nextBtn.addEventListener("click", () => { clearCount++; startWarp(NEXT_STAGE[stage]); });
 
   function startGame() {
     ensureAudio();
@@ -1000,6 +1000,9 @@
   }
   // UFOの速さ(水平・上下の両方)。スタート画面で選ぶ。端末に保存し、保存できなくても動く
   let ufoSpeed = 110;
+  // ステージをクリアするたびに速くなる(1回ごとに+3、最大150。ページを開き直すとリセット)
+  let clearCount = 0;
+  function currentSpeed() { return Math.min(150, ufoSpeed + 3 * clearCount); }
   try {
     const saved = Number(localStorage.getItem("ufoSpeed"));
     if ([70, 85, 110].includes(saved)) ufoSpeed = saved;
@@ -1075,14 +1078,14 @@
     heading.normalize();
 
     // 水平移動(球面に沿って動き、高さは保つ)
-    let hs = ufoSpeed * mag;
+    let hs = currentSpeed() * mag;
     if (alt < 2.5) hs *= 0.5; // 地表近くはゆっくり(着陸しやすい)
     if (moving) {
       ufo.position.copy(ufo.position.clone().addScaledVector(tangentMove, hs * dt).normalize().multiplyScalar(pr));
     }
 
     // 上昇・降下(右スティック + 上下の視点に合わせた前進の高度成分)
-    const vTarget = vIn * ufoSpeed + radialMove * hs;
+    const vTarget = vIn * currentSpeed() + radialMove * hs;
     vz += (vTarget - vz) * Math.min(1, dt * 4); // 離すと高度を維持
     const p2 = ufo.position.length();
     const u2 = ufo.position.clone().divideScalar(p2);
