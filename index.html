@@ -53,6 +53,7 @@
 <div id="hud">
   <div>SCORE <span id="score">0</span></div>
   <div id="alt">ALT 0</div>
+  <div>SPEED <span id="speedHud">110</span></div>
   <div>TIME <span id="time">60</span></div>
 </div>
 <div id="rot">横向きにするとプレイしやすくなります</div>
@@ -81,12 +82,18 @@
 <div id="clear" class="overlay hidden">
   <h1>CLEAR</h1>
   <p>スコア <span id="clearScore" style="font-size:32px;color:#ffe066">0</span></p>
+  <p id="speedUp" style="font-size:20px;color:#9ff">速さ UP! 110 → 113</p>
   <button id="nextBtn">月へ</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
+  // UFOの速さ(水平・上下の両方)。基本は110。ステージをクリアするたびに+3(最大150)。ページを開き直すとリセット
+  const ufoSpeed = 110;
+  let clearCount = 0;
+  function currentSpeed() { return Math.min(150, ufoSpeed + 3 * clearCount); }
+  function refreshSpeedHud() { document.getElementById("speedHud").textContent = currentSpeed(); }
   // ---------- 基本セットアップ ----------
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -859,6 +866,10 @@
     state = "clear";
     clearScoreEl.textContent = score;
     nextBtn.textContent = NEXT_LABEL[stage];
+    const before = currentSpeed();
+    const after = Math.min(150, ufoSpeed + 3 * (clearCount + 1));
+    document.getElementById("speedUp").textContent = after > before
+      ? `速さ UP! ${before} → ${after}` : `速さ MAX ${before}`;
     clearEl.classList.remove("hidden");
   }
   // ---------- ワープ(クリア後の星間移動) ----------
@@ -967,7 +978,7 @@
       setTimeout(() => warpEl.classList.add("hidden"), 900);
     }, 150);
   }
-  nextBtn.addEventListener("click", () => { clearCount++; startWarp(NEXT_STAGE[stage]); });
+  nextBtn.addEventListener("click", () => { clearCount++; refreshSpeedHud(); startWarp(NEXT_STAGE[stage]); });
 
   function startGame() {
     ensureAudio();
@@ -989,8 +1000,6 @@
     finalEl.textContent = score;
     overEl.classList.remove("hidden");
   }
-  // UFOの基本の速さ(水平・上下の両方)。ステージクリアごとに上がる
-  const ufoSpeed = 110;
   document.getElementById("startBtn").addEventListener("click", startGame);
   document.getElementById("restartBtn").addEventListener("click", startGame);
   addEventListener("keydown", e => { if (e.code === "Enter" && state !== "playing") startGame(); });
