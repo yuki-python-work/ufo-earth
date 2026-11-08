@@ -53,7 +53,7 @@
 <div id="hud">
   <div>SCORE <span id="score">0</span></div>
   <div id="alt">ALT 0</div>
-  <div>SPEED <span id="speedHud">110</span></div>
+  <div>SPEED <span id="speedHud">100</span></div>
   <div>TIME <span id="time">60</span></div>
 </div>
 <div id="rot">横向きにするとプレイしやすくなります</div>
@@ -82,17 +82,17 @@
 <div id="clear" class="overlay hidden">
   <h1>CLEAR</h1>
   <p>スコア <span id="clearScore" style="font-size:32px;color:#ffe066">0</span></p>
-  <p id="speedUp" style="font-size:20px;color:#9ff">速さ UP! 110 → 113</p>
+  <p id="speedUp" style="font-size:20px;color:#9ff">速さ UP! 100 → 103</p>
   <button id="nextBtn">月へ</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
-  // UFOの速さ(水平・上下の両方)。基本は110。ステージをクリアするたびに+3(最大150)。ページを開き直すとリセット
-  const ufoSpeed = 110;
+  // UFOの速さ(水平・上下の両方)。基本は100。ステージをクリアするたびに+3(最大180)。ページを開き直すとリセット
+  const ufoSpeed = 100;
   let clearCount = 0;
-  function currentSpeed() { return Math.min(150, ufoSpeed + 3 * clearCount); }
+  function currentSpeed() { return Math.min(180, ufoSpeed + 3 * clearCount); }
   function refreshSpeedHud() { document.getElementById("speedHud").textContent = currentSpeed(); }
   // ---------- 基本セットアップ ----------
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -867,7 +867,7 @@
     clearScoreEl.textContent = score;
     nextBtn.textContent = NEXT_LABEL[stage];
     const before = currentSpeed();
-    const after = Math.min(150, ufoSpeed + 3 * (clearCount + 1));
+    const after = Math.min(180, ufoSpeed + 3 * (clearCount + 1));
     document.getElementById("speedUp").textContent = after > before
       ? `速さ UP! ${before} → ${after}` : `速さ MAX ${before}`;
     clearEl.classList.remove("hidden");
